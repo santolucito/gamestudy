@@ -9,7 +9,7 @@
             margin: 0;
             padding: 20px;
             font-family: 'Trebuchet MS', monospace;
-            background-color: #000000;
+            background-color: #ffffff;
             color: #000000;
             display: flex;
             flex-direction: column;
@@ -121,6 +121,7 @@
             avatarPos: { x: 0, y: 0 },
             avatarColor: 'grey',  // Track avatar color
             centerPos: { x: 0, y: 0 },  // Blue center box
+            targetColor: 'blue',  // Color needed to win
             corners: {
                 originTopLeft: { x: 0, y: 0, color: 'green' },      // Green (reset)
                 originTopRight: { x: 5, y: 0, color: 'yellow' },    // Yellow
@@ -155,6 +156,7 @@
             gameState.grid = level.grid.map(row => [...row]);
             gameState.avatarPos = { ...level.avatar };
             gameState.centerPos = { ...level.center };
+            gameState.targetColor = level.targetColor || 'blue';  // Default to blue if not specified
             gameState.avatarColor = 'grey';
             gameState.colorHistory = ['grey'];
             gameState.moveCount = 0;
@@ -250,12 +252,12 @@
                 return false;
             }
 
-            // Must be blue
-            if (gameState.avatarColor !== 'blue') {
+            // Must be the target color
+            if (gameState.avatarColor !== gameState.targetColor) {
                 return false;
             }
 
-            // Check color history: must go grey -> blue -> center
+            // Check color history: must go grey -> target color -> center
             const history = gameState.colorHistory;
 
             // Find the last time we were grey
@@ -267,11 +269,11 @@
                 }
             }
 
-            // Check if we went directly from grey to blue (no other colors in between)
+            // Check if we went directly from grey to target color (no other colors in between)
             if (lastGreyIndex === -1) return false;
 
             for (let i = lastGreyIndex + 1; i < history.length; i++) {
-                if (history[i] !== 'blue') {
+                if (history[i] !== gameState.targetColor) {
                     return false;
                 }
             }
@@ -426,6 +428,7 @@
                 ],
                 avatar: { x: 2, y: 1 },
                 center: { x: 3, y: 2 },
+                targetColor: 'yellow',  // Win by being yellow instead of blue
                 corners: {
                     originTopLeft: { x: 0, y: 0, color: 'green' },
                     originTopRight: { x: 5, y: 0, color: 'yellow' },
