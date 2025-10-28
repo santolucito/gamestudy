@@ -184,6 +184,7 @@
             gameState.grid = level.grid.map(row => [...row]);
             gameState.avatarPos = { ...level.avatar };
             gameState.centerPos = { ...level.center };
+            gameState.corners = JSON.parse(JSON.stringify(level.corners)); // Deep copy corners
             gameState.targetColor = level.targetColor || 'blue';  // Default to blue if not specified
             gameState.avatarColor = 'grey';
             gameState.colorHistory = ['grey'];
@@ -208,11 +209,14 @@
 
         // Get color at position
         function getColorAtPosition(x, y) {
-            // Check corners - teal resets to grey
-            if (x === 0 && y === 0) return 'grey';  // teal corner resets to grey
-            if (x === 5 && y === 0) return 'yellow';
-            if (x === 0 && y === 5) return 'pink';
-            if (x === 5 && y === 5) return 'blue';
+            // Check corners dynamically
+            for (const cornerKey in gameState.corners) {
+                const corner = gameState.corners[cornerKey];
+                if (x === corner.x && y === corner.y) {
+                    // Teal corner resets to grey, others return their color
+                    return corner.color === 'teal' ? 'grey' : corner.color;
+                }
+            }
 
             // Check center
             if (x === gameState.centerPos.x && y === gameState.centerPos.y) return 'center';
@@ -227,14 +231,19 @@
                     const cell = document.getElementById(`cell-${x}-${y}`);
                     let color = COLORS.EMPTY;
 
-                    // Draw corner blocks
-                    if (x === 0 && y === 0) color = COLORS.TEAL;
-                    else if (x === 5 && y === 0) color = COLORS.YELLOW;
-                    else if (x === 0 && y === 5) color = COLORS.PINK;
-                    else if (x === 5 && y === 5) color = COLORS.BLUE;
+                    // Draw corner blocks dynamically
+                    let isCorner = false;
+                    for (const cornerKey in gameState.corners) {
+                        const corner = gameState.corners[cornerKey];
+                        if (x === corner.x && y === corner.y) {
+                            color = COLORS[corner.color.toUpperCase()];
+                            isCorner = true;
+                            break;
+                        }
+                    }
 
                     // Draw center block
-                    else if (x === gameState.centerPos.x && y === gameState.centerPos.y) {
+                    if (!isCorner && x === gameState.centerPos.x && y === gameState.centerPos.y) {
                         color = COLORS[gameState.targetColor.toUpperCase()];
                     }
 
@@ -250,8 +259,13 @@
 
         // Check if position is a corner block
         function isCornerBlock(x, y) {
-            return (x === 0 && y === 0) || (x === 5 && y === 0) ||
-                   (x === 0 && y === 5) || (x === 5 && y === 5);
+            for (const cornerKey in gameState.corners) {
+                const corner = gameState.corners[cornerKey];
+                if (x === corner.x && y === corner.y) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // Check if avatar is adjacent to a corner
