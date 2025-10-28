@@ -155,6 +155,7 @@
             gameState.grid = level.grid.map(row => [...row]);
             gameState.avatarPos = { ...level.avatar };
             gameState.centerPos = { ...level.center };
+            gameState.corners = JSON.parse(JSON.stringify(level.corners)); // Deep copy
             gameState.avatarColor = 'white';
             gameState.colorHistory = ['white'];
             gameState.moveCount = 0;
@@ -164,11 +165,14 @@
 
         // Get color at position
         function getColorAtPosition(x, y) {
-            // Check corners - green resets to white
-            if (x === 0 && y === 0) return 'white';  // Green corner resets to white
-            if (x === 5 && y === 0) return 'yellow';
-            if (x === 0 && y === 5) return 'pink';
-            if (x === 5 && y === 5) return 'blue';
+            // Check corners dynamically
+            for (const cornerKey in gameState.corners) {
+                const corner = gameState.corners[cornerKey];
+                if (x === corner.x && y === corner.y) {
+                    // Green corner resets to white, others return their color
+                    return corner.color === 'green' ? 'white' : corner.color;
+                }
+            }
 
             // Check center
             if (x === gameState.centerPos.x && y === gameState.centerPos.y) return 'center';
@@ -183,14 +187,19 @@
                     const cell = document.getElementById(`cell-${x}-${y}`);
                     let color = COLORS.EMPTY;
 
-                    // Draw corner blocks
-                    if (x === 0 && y === 0) color = COLORS.GREEN;
-                    else if (x === 5 && y === 0) color = COLORS.YELLOW;
-                    else if (x === 0 && y === 5) color = COLORS.PINK;
-                    else if (x === 5 && y === 5) color = COLORS.BLUE;
+                    // Draw corner blocks dynamically
+                    let isCorner = false;
+                    for (const cornerKey in gameState.corners) {
+                        const corner = gameState.corners[cornerKey];
+                        if (x === corner.x && y === corner.y) {
+                            color = COLORS[corner.color.toUpperCase()];
+                            isCorner = true;
+                            break;
+                        }
+                    }
 
                     // Draw center block
-                    else if (x === gameState.centerPos.x && y === gameState.centerPos.y) {
+                    if (!isCorner && x === gameState.centerPos.x && y === gameState.centerPos.y) {
                         color = COLORS.BLUE;
                     }
 
@@ -206,8 +215,13 @@
 
         // Check if position is a corner block
         function isCornerBlock(x, y) {
-            return (x === 0 && y === 0) || (x === 5 && y === 0) ||
-                   (x === 0 && y === 5) || (x === 5 && y === 5);
+            for (const cornerKey in gameState.corners) {
+                const corner = gameState.corners[cornerKey];
+                if (x === corner.x && y === corner.y) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // Check if avatar is adjacent to a corner
@@ -378,7 +392,13 @@
                     [0, 0, 0, 0, 0, 0]
                 ],
                 avatar: { x: 2, y: 1 },
-                center: { x: 3, y: 3 }
+                center: { x: 3, y: 3 },
+                corners: {
+                    topLeft: { x: 0, y: 0, color: 'green' },
+                    topRight: { x: 5, y: 0, color: 'yellow' },
+                    bottomLeft: { x: 0, y: 5, color: 'pink' },
+                    bottomRight: { x: 5, y: 5, color: 'blue' }
+                }
             };
         }
 
@@ -395,7 +415,13 @@
                     [0, 0, 0, 0, 0, 0]
                 ],
                 avatar: { x: 2, y: 1 },
-                center: { x: 2, y: 3 }
+                center: { x: 2, y: 3 },
+                corners: {
+                    topLeft: { x: 0, y: 0, color: 'green' },
+                    topRight: { x: 5, y: 0, color: 'yellow' },
+                    bottomLeft: { x: 0, y: 5, color: 'pink' },
+                    bottomRight: { x: 5, y: 5, color: 'blue' }
+                }
             };
         }
 
@@ -412,7 +438,13 @@
                     [0, 0, 0, 0, 0, 0]
                 ],
                 avatar: { x: 2, y: 1 },
-                center: { x: 3, y: 2 }
+                center: { x: 3, y: 2 },
+                corners: {
+                    topLeft: { x: 0, y: 0, color: 'green' },
+                    topRight: { x: 5, y: 0, color: 'yellow' },
+                    bottomLeft: { x: 0, y: 5, color: 'pink' },
+                    bottomRight: { x: 5, y: 5, color: 'blue' }
+                }
             };
         }
 
