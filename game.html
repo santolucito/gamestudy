@@ -38,7 +38,7 @@
         .ripple {
             position: absolute;
             border-radius: 50%;
-            border: 7px solid #7FFFD4;
+            border: 7px solid #32CD32;
             opacity: 2;
         }
 
@@ -106,11 +106,11 @@
         // Color definitions
         const COLORS = {
             EMPTY: '#FFFFFF',
-            WHITE: '#000000',  // Avatar is black
-            BLUE: '#2196F3',
+            GREY: '#D3D3D3',  // Avatar is grey
+            BLUE: '#008080',
             YELLOW: '#FFEB3B',
-            GREEN: '#4CAF50',
-            PINK: '#E91E63'
+            GREEN: '#90EE90',
+            PINK: '#FFB6C1'
         };
 
         // Game state
@@ -119,7 +119,7 @@
         let gameState = {
             grid: [],
             avatarPos: { x: 0, y: 0 },
-            avatarColor: 'white',  // Track avatar color
+            avatarColor: 'grey',  // Track avatar color
             centerPos: { x: 0, y: 0 },  // Blue center box
             corners: {
                 topLeft: { x: 0, y: 0, color: 'green' },      // Green (reset)
@@ -128,7 +128,7 @@
                 bottomRight: { x: 5, y: 5, color: 'blue' }    // Blue
             },
             moveCount: 0,
-            colorHistory: ['white']  // Track color transitions
+            colorHistory: ['grey']  // Track color transitions
         };
 
         // Initialize grid display
@@ -155,8 +155,8 @@
             gameState.grid = level.grid.map(row => [...row]);
             gameState.avatarPos = { ...level.avatar };
             gameState.centerPos = { ...level.center };
-            gameState.avatarColor = level.avatarColor || 'white';
-            gameState.colorHistory = [level.avatarColor || 'white'];
+            gameState.avatarColor = 'grey';
+            gameState.colorHistory = ['grey'];
             gameState.moveCount = 0;
 
             renderGrid();
@@ -164,8 +164,8 @@
 
         // Get color at position
         function getColorAtPosition(x, y) {
-            // Check corners - green resets to white
-            if (x === 0 && y === 0) return 'white';  // Green corner resets to white
+            // Check corners - green resets to grey
+            if (x === 0 && y === 0) return 'grey';  // Green corner resets to grey
             if (x === 5 && y === 0) return 'yellow';
             if (x === 0 && y === 5) return 'pink';
             if (x === 5 && y === 5) return 'blue';
@@ -255,22 +255,22 @@
                 return false;
             }
 
-            // Check color history: must go white -> blue -> center
+            // Check color history: must go grey -> blue -> center
             const history = gameState.colorHistory;
 
-            // Find the last time we were white
-            let lastWhiteIndex = -1;
+            // Find the last time we were grey
+            let lastGreyIndex = -1;
             for (let i = history.length - 1; i >= 0; i--) {
-                if (history[i] === 'white') {
-                    lastWhiteIndex = i;
+                if (history[i] === 'grey') {
+                    lastGreyIndex = i;
                     break;
                 }
             }
 
-            // Check if we went directly from white to blue (no other colors in between)
-            if (lastWhiteIndex === -1) return false;
+            // Check if we went directly from grey to blue (no other colors in between)
+            if (lastGreyIndex === -1) return false;
 
-            for (let i = lastWhiteIndex + 1; i < history.length; i++) {
+            for (let i = lastGreyIndex + 1; i < history.length; i++) {
                 if (history[i] !== 'blue') {
                     return false;
                 }
@@ -424,7 +424,6 @@
                     [0, 0, 0, 0, 0, 0]
                 ],
                 avatar: { x: 2, y: 1 },
-                avatarColor: 'yellow',  // Starting color for this level
                 center: { x: 3, y: 2 },
                 corners: {
                     topLeft: { x: 0, y: 0, color: 'green' },
