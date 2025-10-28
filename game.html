@@ -234,7 +234,7 @@
 
                     // Draw center block
                     else if (x === gameState.centerPos.x && y === gameState.centerPos.y) {
-                        color = COLORS.BLUE;
+                        color = COLORS[gameState.targetColor.toUpperCase()];
                     }
 
                     // Draw avatar (on top)
