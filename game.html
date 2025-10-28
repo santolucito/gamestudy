@@ -377,9 +377,9 @@
                     if (currentLevelIndex < levels.length) {
                         loadLevel(currentLevelIndex);
                     } else {
-                        // Game complete - fade back in to show final state
-                        gridElement.classList.remove('fade-out');
-                        instructionsElement.classList.remove('fade-out');
+                        // Game complete - restart from level 1
+                        currentLevelIndex = 0;
+                        loadLevel(currentLevelIndex);
                     }
                 }, 800);
             }
@@ -477,8 +477,8 @@
                 center: { x: 4, y: 2 },
                 corners: {
                     originTopLeft: { x: 5, y: 5, color: 'yellow' },
-                    originTopRight: { x: 0, y: 0, color: 'teal' },
-                    originBottomLeft: { x: 0, y: 5, color: 'blue' },
+                    originTopRight: { x: 0, y: 5, color: 'teal' },
+                    originBottomLeft: { x: 0, y: 0, color: 'blue' },
                     originBottomRight: { x: 5, y: 0, color: 'pink' }
                 }
             };
