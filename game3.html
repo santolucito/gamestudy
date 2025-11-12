@@ -435,47 +435,68 @@
             renderGrid();
         }
 
-        // Pathfinding: BFS to check if car can reach goal
+        // Pathfinding: BFS to check if car(s) can reach goal
         function canReachGoal() {
-            const start = gameState.carPos;
             const goal = gameState.goalPos;
 
-            const queue = [[start.row, start.col]];
-            const visited = new Set();
-            visited.add(`${start.row},${start.col}`);
-
-            while (queue.length > 0) {
-                const [row, col] = queue.shift();
-
-                // Check if we reached the goal
-                if (row === goal.row && col === goal.col) {
-                    return true;
-                }
-
-                // Check all 4 adjacent cells
-                const neighbors = [
-                    [row - 1, col],
-                    [row + 1, col],
-                    [row, col - 1],
-                    [row, col + 1]
-                ];
-
-                for (const [nRow, nCol] of neighbors) {
-                    if (nRow < 0 || nRow >= 7 || nCol < 0 || nCol >= 7) continue;
-
-                    const key = `${nRow},${nCol}`;
-                    if (visited.has(key)) continue;
-
-                    const gridValue = gameState.grid[nRow][nCol];
-                    // Can move on track (1), fixed track (2), or goal (4)
-                    if (gridValue === 1 || gridValue === 2 || gridValue === 4) {
-                        visited.add(key);
-                        queue.push([nRow, nCol]);
+            // Find all car positions in the grid
+            const carPositions = [];
+            for (let row = 0; row < 7; row++) {
+                for (let col = 0; col < 7; col++) {
+                    if (gameState.grid[row][col] === 3) {
+                        carPositions.push([row, col]);
                     }
                 }
             }
 
-            return false;
+            // Check if EACH car can reach the goal
+            for (const [startRow, startCol] of carPositions) {
+                const queue = [[startRow, startCol]];
+                const visited = new Set();
+                visited.add(`${startRow},${startCol}`);
+
+                let canReach = false;
+
+                while (queue.length > 0) {
+                    const [row, col] = queue.shift();
+
+                    // Check if we reached the goal
+                    if (row === goal.row && col === goal.col) {
+                        canReach = true;
+                        break;
+                    }
+
+                    // Check all 4 adjacent cells
+                    const neighbors = [
+                        [row - 1, col],
+                        [row + 1, col],
+                        [row, col - 1],
+                        [row, col + 1]
+                    ];
+
+                    for (const [nRow, nCol] of neighbors) {
+                        if (nRow < 0 || nRow >= 7 || nCol < 0 || nCol >= 7) continue;
+
+                        const key = `${nRow},${nCol}`;
+                        if (visited.has(key)) continue;
+
+                        const gridValue = gameState.grid[nRow][nCol];
+                        // Can move on track (1), fixed track (2), car (3), or goal (4)
+                        if (gridValue === 1 || gridValue === 2 || gridValue === 3 || gridValue === 4) {
+                            visited.add(key);
+                            queue.push([nRow, nCol]);
+                        }
+                    }
+                }
+
+                // If ANY car cannot reach the goal, return false
+                if (!canReach) {
+                    return false;
+                }
+            }
+
+            // All cars can reach the goal
+            return true;
         }
 
         // Move car
