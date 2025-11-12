@@ -484,12 +484,22 @@
                 return; // Path not complete
             }
 
-            // Clear car from old position
-            gameState.grid[gameState.carPos.row][gameState.carPos.col] = 1;
+            // Clear car(s) from old position(s)
+            // For Level 4 with two cars, clear both; otherwise just clear the one
+            for (let row = 0; row < 7; row++) {
+                for (let col = 0; col < 7; col++) {
+                    if (gameState.grid[row][col] === 3) {
+                        gameState.grid[row][col] = 1; // Convert car to track
+                    }
+                }
+            }
 
-            // Move car to goal
+            // Move car to goal (both cars converge to same position in Level 4)
             gameState.carPos = { ...gameState.goalPos };
             gameState.grid[gameState.carPos.row][gameState.carPos.col] = 3;
+
+            // Clear selection so pathway shows uniformly on completion
+            gameState.selectedChunkIndex = -1;
 
             renderGrid();
 
