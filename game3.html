@@ -45,8 +45,9 @@
             grid-template-columns: repeat(7, 60px);
             grid-template-rows: repeat(7, 60px);
             gap: 2px;
+            background-color: #e0e0e0;
             padding: 2px;
-            border: 3px solid #333;
+            border: 3px solid #e0e0e0;
             opacity: 1;
             transition: opacity 0.5s ease-in-out;
         }
@@ -120,16 +121,9 @@
             right: 20px;
             z-index: 1000;
         }
-
-        #level-indicator {
-            margin-bottom: 15px;
-            font-size: 20px;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
-    <div id="level-indicator"></div>
     <div id="instructions">
         There are no instructions for this game, intentionally. Use the arrow keys, "B" key, and space bar to discover the controls, rules, and objective.
     </div>
@@ -326,9 +320,6 @@
             gameState.carPos = { row: level.carStart[0], col: level.carStart[1] };
             gameState.goalPos = { row: level.goal[0], col: level.goal[1] };
             gameState.colors = { ...level.colors };
-
-            // Update level indicator
-            document.getElementById('level-indicator').textContent = `Level ${levelIndex + 1}`;
 
             renderGrid();
 
@@ -544,7 +535,6 @@
                 } else {
                     // Game complete
                     gridElement.classList.remove('fade-out');
-                    document.getElementById('level-indicator').textContent = 'All Levels Complete!';
                     document.getElementById('restart-button').style.display = 'block';
                     document.getElementById('download-button').style.display = 'block';
                 }
