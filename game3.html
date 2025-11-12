@@ -152,6 +152,20 @@
             events: []
         };
 
+        // ===========================
+        // GRID VALUE LEGEND
+        // ===========================
+        // 0 = Empty cell (background)
+        // 1 = Movable track (can be part of chunks that move)
+        // 2 = Fixed track (cannot move, stays in place)
+        // 3 = Car (starting position)
+        // 4 = Goal (hidden, where car needs to reach)
+        //
+        // chunks: array of coordinate groups [[row,col],[row,col],...]
+        //         - defines which movable tracks (1's) move together
+        //         - coordinates are [row, col] where row 0 is top, col 0 is left
+        // ===========================
+
         // Level definitions
         function level1() {
             return {
