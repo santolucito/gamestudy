@@ -383,24 +383,27 @@
             }
 
             // Check collisions with fixed track, car, and other chunks
+            // Note: Goal (4) is allowed - chunks can move over it
             for (const [r, c] of newPositions) {
                 const gridValue = gameState.grid[r][c];
 
-                // Check if this position is occupied by something other than the current chunk
-                if (gridValue !== 0) {
-                    // Check if this position is part of the current chunk (which is okay)
-                    let isPartOfCurrentChunk = false;
-                    for (const [cr, cc] of chunk) {
-                        if (cr === r && cc === c) {
-                            isPartOfCurrentChunk = true;
-                            break;
-                        }
-                    }
+                // Skip if empty or goal (both are passable)
+                if (gridValue === 0 || gridValue === 4) {
+                    continue;
+                }
 
-                    // If occupied by something that's NOT part of current chunk, collision!
-                    if (!isPartOfCurrentChunk) {
-                        return; // Collision detected
+                // Check if this position is part of the current chunk (which is okay)
+                let isPartOfCurrentChunk = false;
+                for (const [cr, cc] of chunk) {
+                    if (cr === r && cc === c) {
+                        isPartOfCurrentChunk = true;
+                        break;
                     }
+                }
+
+                // If occupied by something that's NOT part of current chunk, collision!
+                if (!isPartOfCurrentChunk) {
+                    return; // Collision detected
                 }
             }
 
