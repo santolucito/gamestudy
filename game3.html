@@ -96,9 +96,14 @@
             }
         }
 
-        #restart-button, #download-button {
+        #button-container {
             display: none;
-            margin: 20px auto;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        #restart-button, #download-button {
             padding: 15px 30px;
             font-size: 18px;
             font-family: 'Trebuchet MS', monospace;
@@ -114,13 +119,6 @@
             background-color: #1a1a1a;
             color: #ffffff;
         }
-
-        #download-button {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
     </style>
 </head>
 <body>
@@ -131,8 +129,10 @@
         <div id="ripple-container"></div>
         <div id="grid"></div>
     </div>
-    <button id="restart-button">Start Over</button>
-    <button id="download-button">Download Data</button>
+    <div id="button-container">
+        <button id="restart-button">Restart</button>
+        <button id="download-button">Download Data</button>
+    </div>
 
     <script>
         // Game state
@@ -535,8 +535,7 @@
                 } else {
                     // Game complete
                     gridElement.classList.remove('fade-out');
-                    document.getElementById('restart-button').style.display = 'block';
-                    document.getElementById('download-button').style.display = 'block';
+                    document.getElementById('button-container').style.display = 'flex';
                 }
             }, 800);
         }
@@ -617,8 +616,7 @@
         // Restart button
         document.getElementById('restart-button').addEventListener('click', () => {
             currentLevelIndex = 0;
-            document.getElementById('restart-button').style.display = 'none';
-            document.getElementById('download-button').style.display = 'none';
+            document.getElementById('button-container').style.display = 'none';
 
             // Reset session data
             sessionData = {
