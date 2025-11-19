@@ -400,28 +400,34 @@
                         cellColor = level.palette.spawnDock;
                     }
 
-                    // Check if this is trigger cell
-                    if (level.spawnTriggerCell.x === x && level.spawnTriggerCell.y === y && !boardCell.color) {
-                        cellColor = level.palette.triggerCell;
-                    }
+                    // Check if avatar is on this cell
+                    const isAvatar = (avatar.x === x && avatar.y === y);
 
-                    // Check if this is spawn remover dock
-                    if (level.spawnRemoverDockCells) {
-                        const isRemoverDock = level.spawnRemoverDockCells.some(dock => dock.x === x && dock.y === y);
-                        if (isRemoverDock && !boardCell.color) {
-                            cellColor = level.palette.spawnDock;
+                    // Only show trigger/dock colors if avatar is NOT on this cell
+                    if (!isAvatar) {
+                        // Check if this is trigger cell
+                        if (level.spawnTriggerCell.x === x && level.spawnTriggerCell.y === y && !boardCell.color) {
+                            cellColor = level.palette.triggerCell;
                         }
-                    }
 
-                    // Check if this is spawn remover trigger cell
-                    if (level.spawnRemoverTriggerCell && level.spawnRemoverTriggerCell.x === x && level.spawnRemoverTriggerCell.y === y && !boardCell.color) {
-                        cellColor = level.palette.triggerCell;
+                        // Check if this is spawn remover dock
+                        if (level.spawnRemoverDockCells) {
+                            const isRemoverDock = level.spawnRemoverDockCells.some(dock => dock.x === x && dock.y === y);
+                            if (isRemoverDock && !boardCell.color) {
+                                cellColor = level.palette.spawnDock;
+                            }
+                        }
+
+                        // Check if this is spawn remover trigger cell
+                        if (level.spawnRemoverTriggerCell && level.spawnRemoverTriggerCell.x === x && level.spawnRemoverTriggerCell.y === y && !boardCell.color) {
+                            cellColor = level.palette.triggerCell;
+                        }
                     }
 
                     cell.style.backgroundColor = cellColor;
 
                     // Draw avatar
-                    if (avatar.x === x && avatar.y === y) {
+                    if (isAvatar) {
                         cell.classList.add('avatar');
                         cell.style.backgroundColor = avatar.color;
                     }
@@ -674,6 +680,7 @@
                     });
 
                     spawnIndex--;
+                    renderBoard();
                 }
             }
         }
