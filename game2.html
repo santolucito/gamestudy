@@ -59,6 +59,7 @@
 
         .cell.avatar {
             border: 3px solid #1a1a1a57;
+            background: #1a1a1a57
         }
 
         #restart-btn {
@@ -453,7 +454,43 @@
 
             // Block if cell has ANY color (template, spawned, or deposited) and is NOT a trigger
             if (targetCell.color && !isOnTrigger) {
-                // Movement blocked - cannot move onto any pieces except triggers
+                // Movement blocked - but check if avatar can pick up color from spawned piece
+                if (!targetCell.isTemplate && avatar.color === level.palette.avatarDefault) {
+                    // Avatar is gray and touched a spawned/deposited piece - pick up the color
+                    avatar.color = targetCell.color;
+
+                    logEvent({
+                        type: "pickup",
+                        position: {x: newX, y: newY},
+                        color: avatar.color,
+                        timestamp: Date.now()
+                    });
+
+                    renderBoard();
+                    return; // Movement still blocked, but color picked up
+                }
+
+                // Check if avatar can deposit (carrying same color as blocked piece)
+                if (!targetCell.isTemplate && avatar.color === targetCell.color && avatar.color !== level.palette.avatarDefault) {
+                    // Avatar touched same color - deposit in previous position and reset
+                    const oldX = avatar.x;
+                    const oldY = avatar.y;
+                    board[oldX][oldY].color = avatar.color;
+                    avatar.color = level.palette.avatarDefault;
+
+                    logEvent({
+                        type: "deposit",
+                        position: {x: oldX, y: oldY},
+                        color: board[oldX][oldY].color,
+                        timestamp: Date.now()
+                    });
+
+                    renderBoard();
+                    checkWinCondition();
+                    return; // Movement blocked, but deposited
+                }
+
+                // Just blocked, no pickup or deposit
                 logEvent({
                     type: "move_blocked",
                     attemptedPosition: {x: newX, y: newY},
@@ -478,60 +515,6 @@
                 avatarColor: avatar.color,
                 timestamp: Date.now()
             });
-
-            // Check if avatar touches a piece of the SAME color it's carrying - DEPOSIT and reset
-            const directions = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
-            let deposited = false;
-
-            if (avatar.color !== level.palette.avatarDefault) {
-                // Avatar is carrying a color - check if touching same color to deposit
-                for (const dir of directions) {
-                    const adjX = newX + dir.dx;
-                    const adjY = newY + dir.dy;
-
-                    if (adjX >= 0 && adjX < level.boardSize && adjY >= 0 && adjY < level.boardSize) {
-                        const adjCell = board[adjX][adjY];
-                        if (adjCell.color === avatar.color && !adjCell.isTemplate) {
-                            // Touched same color - deposit in current position and reset
-                            board[newX][newY].color = avatar.color;
-                            avatar.color = level.palette.avatarDefault;
-                            deposited = true;
-
-                            logEvent({
-                                type: "deposit",
-                                position: {x: newX, y: newY},
-                                color: board[newX][newY].color,
-                                timestamp: Date.now()
-                            });
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // If not deposited, check if avatar picks up color from adjacent piece
-            if (!deposited && avatar.color === level.palette.avatarDefault) {
-                for (const dir of directions) {
-                    const adjX = newX + dir.dx;
-                    const adjY = newY + dir.dy;
-
-                    if (adjX >= 0 && adjX < level.boardSize && adjY >= 0 && adjY < level.boardSize) {
-                        const adjCell = board[adjX][adjY];
-                        if (adjCell.color && !adjCell.isTemplate) {
-                            // Pick up this color
-                            avatar.color = adjCell.color;
-
-                            logEvent({
-                                type: "pickup",
-                                position: {x: adjX, y: adjY},
-                                color: avatar.color,
-                                timestamp: Date.now()
-                            });
-                            break; // Only pick up from one piece
-                        }
-                    }
-                }
-            }
 
             // Check spawn trigger
             if (newX === level.spawnTriggerCell.x && newY === level.spawnTriggerCell.y) {
