@@ -52,13 +52,13 @@
         .cell {
             width: 40px;
             height: 40px;
-            background: #222;
+            background: #fff;
             position: relative;
             transition: background-color 0.2s;
         }
 
         .cell.avatar {
-            border: 3px solid #fff;
+            border: 3px solid #1a1a1a57;
         }
 
         #restart-btn {
@@ -386,26 +386,26 @@
 
             // Initialize empty board
             board = [];
-            for (let y = 0; y < level.boardSize; y++) {
-                board[y] = [];
-                for (let x = 0; x < level.boardSize; x++) {
-                    board[y][x] = {color: null, isTemplate: false, isGoal: false};
+            for (let x = 0; x < level.boardSize; x++) {
+                board[x] = [];
+                for (let y = 0; y < level.boardSize; y++) {
+                    board[x][y] = {color: null, isTemplate: false, isGoal: false};
                 }
             }
 
             // Place hint template cells
             level.hintTemplateCells.forEach(cell => {
-                board[cell.y][cell.x] = {color: cell.color, isTemplate: true, isGoal: false};
+                board[cell.x][cell.y] = {color: cell.color, isTemplate: true, isGoal: false};
             });
 
             // Place initial static pieces
             level.initialStaticPieces.forEach(piece => {
-                board[piece.y][piece.x] = {color: piece.color, isTemplate: false, isGoal: false};
+                board[piece.x][piece.y] = {color: piece.color, isTemplate: false, isGoal: false};
             });
 
             // Mark goal pattern cells
             level.goalPattern.forEach(goal => {
-                board[goal.y][goal.x].isGoal = true;
+                board[goal.x][goal.y].isGoal = true;
             });
 
             spawnIndex = 0;
@@ -430,14 +430,14 @@
             gridElement.style.gridTemplateColumns = `repeat(${level.boardSize}, 40px)`;
             gridElement.innerHTML = '';
 
-            for (let y = 0; y < level.boardSize; y++) {
-                for (let x = 0; x < level.boardSize; x++) {
+            for (let x = 0; x < level.boardSize; x++) {
+                for (let y = 0; y < level.boardSize; y++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
 
                     // Determine cell color
                     let cellColor = '#222';
-                    const boardCell = board[y][x];
+                    const boardCell = board[x][y];
 
                     if (boardCell.color) {
                         cellColor = boardCell.color;
@@ -496,7 +496,7 @@
             }
 
             // Check if target cell is blocked by a piece (spawned or deposited)
-            const targetCell = board[newY][newX];
+            const targetCell = board[newX][newY];
             if (targetCell.color && !targetCell.isTemplate) {
                 // Movement blocked - cannot move onto pieces
                 logEvent({
@@ -530,7 +530,7 @@
                 const adjY = newY + dir.dy;
 
                 if (adjX >= 0 && adjX < level.boardSize && adjY >= 0 && adjY < level.boardSize) {
-                    const adjCell = board[adjY][adjX];
+                    const adjCell = board[adjX][adjY];
                     if (adjCell.color && !adjCell.isTemplate) {
                         avatar.color = adjCell.color;
 
@@ -546,11 +546,11 @@
             }
 
             // Try to deposit color in old position
-            const oldCell = board[oldY][oldX];
+            const oldCell = board[oldX][oldY];
             if (avatar.color !== level.palette.avatarDefault && !oldCell.color && !oldCell.isTemplate) {
                 // Check if old position has orthogonal neighbor with same color
                 if (hasOrthogonalNeighborWithColor(oldX, oldY, avatar.color)) {
-                    board[oldY][oldX].color = avatar.color;
+                    board[oldX][oldY].color = avatar.color;
 
                     logEvent({
                         type: "deposit",
@@ -595,7 +595,7 @@
                 const ny = y + dir.dy;
 
                 if (nx >= 0 && nx < level.boardSize && ny >= 0 && ny < level.boardSize) {
-                    if (board[ny][nx].color === color) {
+                    if (board[nx][ny].color === color) {
                         return true;
                     }
                 }
@@ -651,11 +651,11 @@
 
             while (!spawned && spawnIndex < level.spawnSequence.length && attempts < level.spawnSequence.length) {
                 const spawn = level.spawnSequence[spawnIndex];
-                const targetCell = board[spawn.y][spawn.x];
+                const targetCell = board[spawn.x][spawn.y];
 
                 if (!targetCell.color && !targetCell.isTemplate) {
                     // Spawn successful
-                    board[spawn.y][spawn.x].color = spawn.color;
+                    board[spawn.x][spawn.y].color = spawn.color;
                     spawnHistory.push({
                         index: spawnIndex,
                         position: {x: spawn.x, y: spawn.y},
@@ -720,7 +720,7 @@
                 // Remove the most recent spawn
                 if (spawnHistory.length > 0) {
                     const lastSpawn = spawnHistory.pop();
-                    board[lastSpawn.position.y][lastSpawn.position.x].color = null;
+                    board[lastSpawn.position.x][lastSpawn.position.y].color = null;
 
                     logEvent({
                         type: "spawn_removed",
@@ -742,7 +742,7 @@
             let allMatch = true;
 
             for (const goal of level.goalPattern) {
-                const cell = board[goal.y][goal.x];
+                const cell = board[goal.x][goal.y];
                 if (cell.color !== goal.requiredColor) {
                     allMatch = false;
                     break;
