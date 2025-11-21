@@ -685,17 +685,22 @@
         document.getElementById('download-button').addEventListener('click', () => {
             sessionData.sessionEnd = new Date().toISOString();
 
-            // Convert to JSON with custom formatting for matrices
-            let dataStr = JSON.stringify(sessionData, null, 2);
-
-            // Replace matrix formatting to keep each row on one line
-            dataStr = dataStr.replace(/"gameStateBefore":\s*\[\s*((?:\[\s*"[A-Z]"(?:,\s*"[A-Z]")*\s*\](?:,\s*)?)+)\s*\]/g, (match, rows) => {
-                // Extract each row and format it on a single line
-                const formattedRows = rows.match(/\[\s*"[A-Z]"(?:,\s*"[A-Z]")*\s*\]/g)
-                    .map(row => '        ' + row.replace(/\s+/g, ''))
-                    .join(',\n');
-                return '"gameStateBefore": [\n' + formattedRows + '\n      ]';
-            });
+            // Custom JSON formatter that keeps matrix rows compact
+            const dataStr = JSON.stringify(sessionData, (key, value) => {
+                return value;
+            }, 2).replace(
+                /"gameStateBefore": \[\n([\s\S]*?)\n(\s+)\]/g,
+                (match, content, indent) => {
+                    // Extract the rows from the verbose format
+                    const rows = [];
+                    const rowMatches = content.matchAll(/\[\n[\s\S]*?\]/g);
+                    for (const rowMatch of rowMatches) {
+                        const letters = [...rowMatch[0].matchAll(/"([A-Z])"/g)].map(m => `"${m[1]}"`);
+                        rows.push(`${indent}  [${letters.join(',')}]`);
+                    }
+                    return `"gameStateBefore": [\n${rows.join(',\n')}\n${indent}]`;
+                }
+            );
 
             const blob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
