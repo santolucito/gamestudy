@@ -150,7 +150,7 @@
             grid: [],
             chunks: [],
             selectedChunkIndex: 0,
-            carPos: { row: 0, col: 0 },
+            vehiclePos: { row: 0, col: 0 },
             goalPos: { row: 0, col: 0 },
             colors: {}
         };
@@ -167,8 +167,8 @@
         // 0 = Empty cell (background)
         // 1 = Movable track (can be part of chunks that move)
         // 2 = Fixed track (cannot move, stays in place)
-        // 3 = Car (starting position)
-        // 4 = Goal (hidden, where car needs to reach)
+        // 3 = Vehicle (starting position)
+        // 4 = Goal (hidden, where vehicle needs to reach)
         //
         // chunks: array of coordinate groups [[row,col],[row,col],...]
         //         - defines which movable tracks (1's) move together
@@ -194,13 +194,13 @@
                     [[6,3]],        // Single moveable cell
                     [[6,4]],        // Single moveable cell
                 ],
-                carStart: [3,0],
+                vehicleStart: [3,0],
                 goal: [3,6],
                 colors: {
                     background: "#FFFFFF",
                     track: "#ADD8E6",
                     fixedTrack: "#ADD8E6",
-                    car: "#DDCC77",
+                    vehicle: "#DDCC77",
                     goal: "#00CC66",
                     selectedChunk: "#D3D3D3"
                 }
@@ -225,13 +225,13 @@
                     [[4,2]],        // Single moveable pixel
                     [[3,4]],        // Single moveable pixel
                 ],
-                carStart: [0,3],
+                vehicleStart: [0,3],
                 goal: [6,3],
                 colors: {
                     background: "#FFFFFF",
                     track: "#44AA99",
                     fixedTrack: "#44AA99",
-                    car: "#CC6677",
+                    vehicle: "#CC6677",
                     goal: "#00FF99",
                     selectedChunk: "#D3D3D3"
                 }
@@ -256,13 +256,13 @@
                     [[2,3],[3,3],[3,4],[3,5]], // Four-cell chunk
                     [[1,5]],                 // Single moveable pixel
                 ],
-                carStart: [0,0],
+                vehicleStart: [0,0],
                 goal: [6,6],
                 colors: {
                     background: "#FFFFFF",
                     track: "#BBCC33",
                     fixedTrack: "#BBCC33",
-                    car: "#332288",
+                    vehicle: "#332288",
                     goal: "#33FF66",
                     selectedChunk: "#D3D3D3"
                 }
@@ -288,13 +288,13 @@
                     [[1,1]],        // Single moveable pixel
                     [[2,4],[2,5]],  // Two-pixel moveable chunk
                 ],
-                carStart: [0,3],  // First car position
-                goal: [6,0],      // Goal where both cars meet
+                vehicleStart: [0,3],  // First vehicle position
+                goal: [6,0],      // Goal where both vehicles meet
                 colors: {
                     background: "#FFFFFF",
                     track: "#882255",
                     fixedTrack: "#882255",
-                    car: "#88CCEE",
+                    vehicle: "#88CCEE",
                     goal: "#00CCFF",
                     selectedChunk: "#D3D3D3"
                 }
@@ -325,7 +325,7 @@
             gameState.grid = level.grid.map(row => [...row]);
             gameState.chunks = level.chunks.map(chunk => chunk.map(cell => [...cell]));
             gameState.selectedChunkIndex = 0;
-            gameState.carPos = { row: level.carStart[0], col: level.carStart[1] };
+            gameState.vehiclePos = { row: level.vehicleStart[0], col: level.vehicleStart[1] };
             gameState.goalPos = { row: level.goal[0], col: level.goal[1] };
             gameState.colors = { ...level.colors };
 
@@ -370,7 +370,7 @@
                     } else if (gridValue === 2) {
                         color = gameState.colors.fixedTrack;
                     } else if (gridValue === 3) {
-                        color = gameState.colors.car;
+                        color = gameState.colors.vehicle;
                     } else if (gridValue === 4) {
                         color = gameState.colors.background; // Goal is hidden
                     }
@@ -395,7 +395,7 @@
                 }
             }
 
-            // Check collisions with fixed track, car, and other chunks
+            // Check collisions with fixed track, vehicle, and other chunks
             // Note: Goal (4) is allowed - chunks can move over it
             for (const [r, c] of newPositions) {
                 const gridValue = gameState.grid[r][c];
@@ -446,22 +446,22 @@
             renderGrid();
         }
 
-        // Pathfinding: BFS to check if car(s) can reach goal
+        // Pathfinding: BFS to check if vehicle(s) can reach goal
         function canReachGoal() {
             const goal = gameState.goalPos;
 
-            // Find all car positions in the grid
-            const carPositions = [];
+            // Find all vehicle positions in the grid
+            const vehiclePositions = [];
             for (let row = 0; row < 7; row++) {
                 for (let col = 0; col < 7; col++) {
                     if (gameState.grid[row][col] === 3) {
-                        carPositions.push([row, col]);
+                        vehiclePositions.push([row, col]);
                     }
                 }
             }
 
-            // Check if EACH car can reach the goal
-            for (const [startRow, startCol] of carPositions) {
+            // Check if EACH vehicle can reach the goal
+            for (const [startRow, startCol] of vehiclePositions) {
                 const queue = [[startRow, startCol]];
                 const visited = new Set();
                 visited.add(`${startRow},${startCol}`);
@@ -492,7 +492,7 @@
                         if (visited.has(key)) continue;
 
                         const gridValue = gameState.grid[nRow][nCol];
-                        // Can move on track (1), fixed track (2), car (3), or goal (4)
+                        // Can move on track (1), fixed track (2), vehicle (3), or goal (4)
                         if (gridValue === 1 || gridValue === 2 || gridValue === 3 || gridValue === 4) {
                             visited.add(key);
                             queue.push([nRow, nCol]);
@@ -500,35 +500,35 @@
                     }
                 }
 
-                // If ANY car cannot reach the goal, return false
+                // If ANY vehicle cannot reach the goal, return false
                 if (!canReach) {
                     return false;
                 }
             }
 
-            // All cars can reach the goal
+            // All vehicles can reach the goal
             return true;
         }
 
-        // Move car
-        function moveCar() {
+        // Move vehicle
+        function moveVehicle() {
             if (!canReachGoal()) {
                 return; // Path not complete
             }
 
-            // Clear car(s) from old position(s)
-            // For Level 4 with two cars, clear both; otherwise just clear the one
+            // Clear vehicle(s) from old position(s)
+            // For Level 4 with two vehicles, clear both; otherwise just clear the one
             for (let row = 0; row < 7; row++) {
                 for (let col = 0; col < 7; col++) {
                     if (gameState.grid[row][col] === 3) {
-                        gameState.grid[row][col] = 1; // Convert car to track
+                        gameState.grid[row][col] = 1; // Convert vehicle to track
                     }
                 }
             }
 
-            // Move car to goal (both cars converge to same position in Level 4)
-            gameState.carPos = { ...gameState.goalPos };
-            gameState.grid[gameState.carPos.row][gameState.carPos.col] = 3;
+            // Move vehicle to goal (both vehicles converge to same position in Level 4)
+            gameState.vehiclePos = { ...gameState.goalPos };
+            gameState.grid[gameState.vehiclePos.row][gameState.vehiclePos.col] = 3;
 
             // Clear selection so pathway shows uniformly on completion
             gameState.selectedChunkIndex = -1;
@@ -571,13 +571,42 @@
             }
         }
 
+        // Generate game state matrix
+        function generateGameStateMatrix() {
+            // Initialize 7x7 matrix with empty cells
+            const matrix = Array(7).fill(null).map(() => Array(7).fill('E'));
+
+            // Populate matrix based on grid values
+            for (let row = 0; row < 7; row++) {
+                for (let col = 0; col < 7; col++) {
+                    const gridValue = gameState.grid[row][col];
+
+                    if (gridValue === 0) {
+                        matrix[row][col] = 'E';  // Empty
+                    } else if (gridValue === 1) {
+                        matrix[row][col] = 'M';  // Movable track
+                    } else if (gridValue === 2) {
+                        matrix[row][col] = 'F';  // Fixed track
+                    } else if (gridValue === 3) {
+                        matrix[row][col] = 'V';  // Vehicle
+                    } else if (gridValue === 4) {
+                        matrix[row][col] = 'G';  // Goal
+                    }
+                }
+            }
+
+            return matrix;
+        }
+
         // Log event
         function logEvent(key, action) {
             sessionData.events.push({
                 timestamp: new Date().toISOString(),
                 level: currentLevelIndex + 1,
                 key: key,
-                action: action
+                action: action,
+                gameStateBefore: generateGameStateMatrix(),
+                selectedChunk: gameState.selectedChunkIndex
             });
         }
 
@@ -617,8 +646,8 @@
                     if (!isBKeyPressed) {
                         isBKeyPressed = true;
                         renderGrid(); // Re-render to show flash effect
-                        logEvent('B', 'attempt_move_car');
-                        moveCar();
+                        logEvent('B', 'attempt_move_vehicle');
+                        moveVehicle();
                     }
                     break;
                 case 'r':
@@ -656,7 +685,18 @@
         document.getElementById('download-button').addEventListener('click', () => {
             sessionData.sessionEnd = new Date().toISOString();
 
-            const dataStr = JSON.stringify(sessionData, null, 2);
+            // Convert to JSON with custom formatting for matrices
+            let dataStr = JSON.stringify(sessionData, null, 2);
+
+            // Replace matrix formatting to keep each row on one line
+            dataStr = dataStr.replace(/"gameStateBefore":\s*\[\s*((?:\[\s*"[A-Z]"(?:,\s*"[A-Z]")*\s*\](?:,\s*)?)+)\s*\]/g, (match, rows) => {
+                // Extract each row and format it on a single line
+                const formattedRows = rows.match(/\[\s*"[A-Z]"(?:,\s*"[A-Z]")*\s*\]/g)
+                    .map(row => '        ' + row.replace(/\s+/g, ''))
+                    .join(',\n');
+                return '"gameStateBefore": [\n' + formattedRows + '\n      ]';
+            });
+
             const blob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
