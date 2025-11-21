@@ -163,10 +163,8 @@
         <div id="ripple-container"></div>
         <div id="grid"></div>
     </div>
-    <div id="button-container">
-        <button id="restart-button">Restart</button>
-        <button id="download-button">Download Data</button>
-    </div>
+    <button id="restart-button">Start Over</button>
+    <button id="download-button">Download Data</button>
 
     <script>
         // Color definitions
@@ -576,7 +574,6 @@
             };
         }
 
-
         function level3() {
             return {
                 id: 3,
@@ -682,7 +679,9 @@
             level1(),
             level2(),
             level3(),
-            level4()
+            level4(),
+            level5(),
+            level6()
         ];
 
         // Start game
