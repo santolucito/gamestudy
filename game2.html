@@ -145,12 +145,12 @@
                 ],
                 initialStaticPieces: [],
                 spawnSequence: [
-                    {x: 5, y: 4, color: "red"},
-                    {x: 1, y: 1, color: "blue"},
-                    {x: 6, y: 6, color: "red"},
-                    {x: 4, y: 1, color: "blue"},
-                    {x: 7, y: 5, color: "purple"},
-                    {x: 6, y: 2, color: "purple"}
+                    {x: 0, y: 0, color: "red"},
+                    {x: 7, y: 0, color: "cyan"},
+                    {x: 5, y: 2, color: "lime"},
+                    {x: 4, y: 1, color: "purple"},
+                    {x: 7, y: 5, color: "red"},
+                    {x: 6, y: 2, color: "cyan"}
                 ],
                 goalPattern: [
                     {x: 3, y: 3, requiredColor: "purple"},
@@ -506,8 +506,8 @@
                 if (adjX >= 0 && adjX < level.boardSize && adjY >= 0 && adjY < level.boardSize) {
                     const adjCell = board[adjX][adjY];
 
-                    // Check if touching same color - DEPOSIT
-                    if (!adjCell.isTemplate && adjCell.color === avatar.color && avatar.color !== level.palette.avatarDefault) {
+                    // Check if touching same color - DEPOSIT (works with any colored cell including templates)
+                    if (adjCell.color === avatar.color && avatar.color !== level.palette.avatarDefault) {
                         // Deposit in current position and reset to gray
                         board[newX][newY].color = avatar.color;
                         avatar.color = level.palette.avatarDefault;
