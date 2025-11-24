@@ -156,23 +156,21 @@
             1: {
                 boardSize: 8,
                 avatarStart: {x: 0, y: 0},
-                spawnDockCells: [{x: 0, y: 7}],
-                spawnTriggerCell: {x: 0, y: 7},
+                spawnDockCells: [{x: 0, y: 0}],
+                spawnTriggerCell: {x: 0, y: 0},
                 spawnAdjacencyRequirement: 0,
-                spawnRemoverDockCells: [{x: 7, y: 7}],
-                spawnRemoverTriggerCell: {x: 7, y: 7},
+                spawnRemoverDockCells: [{x: 7, y: 0}],
+                spawnRemoverTriggerCell: {x: 7, y: 0},
                 spawnRemoverAdjacencyRequirement: 0,
                 hintTemplateCells: [
                     {x: 3, y: 4, color: COLORS.lavender},
                 ],
                 initialStaticPieces: [],
                 spawnSequence: [
-                    {x: 0, y: 0, color: COLORS.pink},
-                    {x: 7, y: 0, color: COLORS.blue},
+                    {x: 0, y: 7, color: COLORS.pink},
+                    {x: 7, y: 7, color: COLORS.blue},
                     {x: 2, y: 5, color: COLORS.lime},
-                    {x: 4, y: 1, color: COLORS.lavender},
-                    {x: 7, y: 5, color: COLORS.pink},
-                    {x: 6, y: 2, color: COLORS.blue2}
+                    {x: 5, y: 1, color: COLORS.lavender}
                 ],
                 goalPattern: [
                     {x: 3, y: 3, requiredColor: COLORS.violet},
@@ -185,11 +183,11 @@
             2: {
                 boardSize: 8,
                 avatarStart: {x: 4, y: 4},
-                spawnDockCells: [{x: 0, y: 7}],
-                spawnTriggerCell: {x: 0, y: 7},
+                spawnDockCells: [{x: 0, y: 0}],
+                spawnTriggerCell: {x: 0, y: 0},
                 spawnAdjacencyRequirement: 0,
-                spawnRemoverDockCells: [{x: 7, y: 7}],
-                spawnRemoverTriggerCell: {x: 7, y: 7},
+                spawnRemoverDockCells: [{x: 7, y: 0}],
+                spawnRemoverTriggerCell: {x: 7, y: 0},
                 spawnRemoverAdjacencyRequirement: 0,
                 hintTemplateCells: [
                     {x: 2, y: 2, color: COLORS.violet},
@@ -222,11 +220,11 @@
             3: {
                 boardSize: 8,
                 avatarStart: {x: 3, y: 3},
-                spawnDockCells: [{x: 0, y: 7}],
-                spawnTriggerCell: {x: 0, y: 7},
+                spawnDockCells: [{x: 0, y: 0}],
+                spawnTriggerCell: {x: 0, y: 0},
                 spawnAdjacencyRequirement: 0,
-                spawnRemoverDockCells: [{x: 7, y: 7}],
-                spawnRemoverTriggerCell: {x: 7, y: 7},
+                spawnRemoverDockCells: [{x: 7, y: 0}],
+                spawnRemoverTriggerCell: {x: 7, y: 0},
                 spawnRemoverAdjacencyRequirement: 0,
                 hintTemplateCells: [
                     {x: 1, y: 1, color: COLORS.yellow},
@@ -260,11 +258,11 @@
             4: {
                 boardSize: 8,
                 avatarStart: {x: 0, y: 0},
-                spawnDockCells: [{x: 0, y: 7}],
-                spawnTriggerCell: {x: 0, y: 7},
+                spawnDockCells: [{x: 0, y: 0}],
+                spawnTriggerCell: {x: 0, y: 0},
                 spawnAdjacencyRequirement: 0,
-                spawnRemoverDockCells: [{x: 7, y: 7}],
-                spawnRemoverTriggerCell: {x: 7, y: 7},
+                spawnRemoverDockCells: [{x: 7, y: 0}],
+                spawnRemoverTriggerCell: {x: 7, y: 0},
                 spawnRemoverAdjacencyRequirement: 0,
                 hintTemplateCells: [
                     {x: 0, y: 0, color: COLORS.magenta},
@@ -296,11 +294,11 @@
             5: {
                 boardSize: 8,
                 avatarStart: {x: 4, y: 0},
-                spawnDockCells: [{x: 0, y: 7}],
-                spawnTriggerCell: {x: 0, y: 7},
+                spawnDockCells: [{x: 0, y: 0}],
+                spawnTriggerCell: {x: 0, y: 0},
                 spawnAdjacencyRequirement: 0,
-                spawnRemoverDockCells: [{x: 7, y: 7}],
-                spawnRemoverTriggerCell: {x: 7, y: 7},
+                spawnRemoverDockCells: [{x: 7, y: 0}],
+                spawnRemoverTriggerCell: {x: 7, y: 0},
                 spawnRemoverAdjacencyRequirement: 0,
                 hintTemplateCells: [
                     {x: 5, y: 5, color: COLORS.yellow},
@@ -397,14 +395,17 @@
             gridElement.style.gridTemplateColumns = `repeat(${level.boardSize}, 40px)`;
             gridElement.innerHTML = '';
 
-            for (let y = 0; y < level.boardSize; y++) {
+            // Render from top to bottom of screen (high y to low y in math coordinates)
+            // Mathematical graph: (0,0) = bottom-left, board[x][y] where x=column, y=row
+            for (let screenRow = 0; screenRow < level.boardSize; screenRow++) {
+                const y = level.boardSize - 1 - screenRow;  // flip y-axis for math graph
                 for (let x = 0; x < level.boardSize; x++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
 
                     // Determine cell color
                     let cellColor = '#fff';
-                    const boardCell = board[y][x];
+                    const boardCell = board[x][y];
 
                     if (boardCell.color) {
                         cellColor = boardCell.color;
@@ -474,10 +475,11 @@
             }
 
             // Check if target cell is blocked by ANY piece
-            // Avatar can ONLY move onto the two dock cells at (7,0) and (7,7) - everything else blocks
+            // Avatar can ONLY move onto the two dock cells at (0,0) and (7,0) - everything else blocks
+            // Mathematical graph: (0,0) = bottom-left, (7,0) = bottom-right
             const targetCell = board[newX][newY];
-            const isOnSpawnDock = (newX === 7 && newY === 0);
-            const isOnRemoverDock = (newX === 7 && newY === 7);
+            const isOnSpawnDock = (newX === 0 && newY === 0);
+            const isOnRemoverDock = (newX === 7 && newY === 0);
             const isOnDock = isOnSpawnDock || isOnRemoverDock;
 
             // Block if cell has ANY color (template, spawned, or deposited) and is NOT a dock
@@ -828,19 +830,19 @@
             switch(e.key) {
                 case 'ArrowUp':
                     e.preventDefault();
-                    moveAvatar(0, -1); // decrease y/row (move up)
+                    moveAvatar(0, 1); // increase y (move up in math graph)
                     break;
                 case 'ArrowDown':
                     e.preventDefault();
-                    moveAvatar(0, 1); // increase y/row (move down)
+                    moveAvatar(0, -1); // decrease y (move down in math graph)
                     break;
                 case 'ArrowLeft':
                     e.preventDefault();
-                    moveAvatar(-1, 0); // decrease x/col (move left)
+                    moveAvatar(-1, 0); // decrease x (move left)
                     break;
                 case 'ArrowRight':
                     e.preventDefault();
-                    moveAvatar(1, 0); // increase x/col (move right)
+                    moveAvatar(1, 0); // increase x (move right)
                     break;
             }
         });
