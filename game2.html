@@ -878,13 +878,19 @@
             ripple.style.animation = 'ripple 0.6s ease-out';
             rippleContainer.appendChild(ripple);
 
+            // Wait for ripple to finish
+            setTimeout(() => {
+                // Remove ripple
+                rippleContainer.innerHTML = '';
+            }, 600);
+
+            // Show completed board for 1 second before fading
             setTimeout(() => {
                 // Add fade out to grid
                 gridElement.classList.add('fade-out');
 
                 setTimeout(() => {
-                    // Remove ripple and fade effects
-                    rippleContainer.innerHTML = '';
+                    // Remove fade effect
                     gridElement.classList.remove('fade-out');
 
                     // Auto-advance to next level or show restart
@@ -896,7 +902,7 @@
                         document.getElementById('restart-btn').style.display = 'block';
                     }
                 }, 500); // Fade out duration
-            }, 600); // Ripple duration
+            }, 1600); // Wait 1 second after ripple completes
         }
 
         function showLevelComplete() {
