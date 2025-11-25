@@ -54,7 +54,7 @@
         .ripple {
             position: absolute;
             border-radius: 50%;
-            border: 7px solid #32CD32;
+            border: 12px solid #32CD32;
             opacity: 2;
         }
 
@@ -864,6 +864,9 @@
                     timestamp: Date.now()
                 });
 
+                // Re-render to hide avatar and dragged block
+                renderBoard();
+
                 triggerLevelComplete();
             }
         }
@@ -872,17 +875,17 @@
             const gridElement = document.getElementById('grid');
             const rippleContainer = document.getElementById('ripple-container');
 
-            // Create green ripple effect
+            // Create green ripple effect (slower)
             const ripple = document.createElement('div');
             ripple.className = 'ripple';
-            ripple.style.animation = 'ripple 0.6s ease-out';
+            ripple.style.animation = 'ripple 0.8s ease-out';
             rippleContainer.appendChild(ripple);
 
             // Wait for ripple to finish
             setTimeout(() => {
                 // Remove ripple
                 rippleContainer.innerHTML = '';
-            }, 600);
+            }, 800);
 
             // Show completed board for 1 second before fading
             setTimeout(() => {
@@ -902,7 +905,7 @@
                         document.getElementById('restart-btn').style.display = 'block';
                     }
                 }, 500); // Fade out duration
-            }, 1600); // Wait 1 second after ripple completes
+            }, 1800); // Wait 1 second after ripple completes (0.8s ripple + 1s pause)
         }
 
         function showLevelComplete() {
