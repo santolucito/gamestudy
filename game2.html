@@ -247,6 +247,7 @@
         </div>
     </div>
 
+    <script src="audio-recorder.js"></script>
     <script>
         // ============================
         // COLOR PALETTE
@@ -1033,6 +1034,43 @@
         // START GAME
         // ============================
         initGame();
+
+        // Initialize audio recorder
+        AudioRecorder.init({
+            gamePrefix: 'puzzle-game2',
+            getGameState: function() {
+                // Capture grid state
+                const gridState = [];
+                for (let row = 1; row <= 5; row++) {
+                    const rowData = [];
+                    for (let col = 1; col <= 5; col++) {
+                        const cell = grid[row][col];
+                        rowData.push({
+                            color: cell.colorKey || null,
+                            isLocked: cell.isLocked,
+                            isTarget: cell.isTarget,
+                            targetColor: cell.targetColor
+                        });
+                    }
+                    gridState.push(rowData);
+                }
+
+                return {
+                    level: currentLevel + 1,
+                    avatarPos: { row: avatar.row, col: avatar.col },
+                    avatarColor: avatar.color,
+                    dragging: dragging ? {
+                        colorKey: dragging.colorKey,
+                        currentPos: dragging.currentPos
+                    } : null,
+                    moveCount: moveCount,
+                    spawnIndex: spawnIndex,
+                    lastSpawnedColor: lastSpawnedColor,
+                    gridState: gridState,
+                    levelCompleted: levelCompleted
+                };
+            }
+        });
     </script>
 </body>
 </html>
