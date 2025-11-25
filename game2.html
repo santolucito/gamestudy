@@ -398,6 +398,7 @@
         let moveCount = 0;
         let spawnIndex = 0;
         let spawnSequence = [];
+        let lastSpawnedColor = null;
 
         // ============================
         // HELPER FUNCTIONS
@@ -496,6 +497,7 @@
             levelCompleted = false;
             moveCount = 0;
             spawnIndex = 0;
+            lastSpawnedColor = null;
 
             // Set up spawn sequence based on level type
             if (level.cyclicSpawn) {
@@ -664,6 +666,9 @@
 
             const colorHex = COLORS[colorKey];
 
+            // Store the last spawned color
+            lastSpawnedColor = colorKey;
+
             dragging = {
                 colorKey: colorKey,
                 colorHex: colorHex,
@@ -678,6 +683,39 @@
                 dockPosition: level.dock,
                 timestamp: Date.now()
             });
+        }
+
+        function repeatLastSpawn() {
+            if (levelCompleted) return;
+            if (!lastSpawnedColor) return; // No color spawned yet
+            if (dragging) {
+                // Already carrying a block - trash it first
+                logEvent({
+                    type: "remove_for_repeat",
+                    colorKey: dragging.colorKey,
+                    colorHex: dragging.colorHex,
+                    timestamp: Date.now()
+                });
+                dragging = null;
+            }
+
+            // Spawn the last color again
+            const colorHex = COLORS[lastSpawnedColor];
+
+            dragging = {
+                colorKey: lastSpawnedColor,
+                colorHex: colorHex,
+                currentPos: null
+            };
+
+            logEvent({
+                type: "repeat_spawn",
+                colorKey: lastSpawnedColor,
+                colorHex: colorHex,
+                timestamp: Date.now()
+            });
+
+            renderBoard();
         }
 
         function removeBlock() {
@@ -864,6 +902,10 @@
                 case 'ArrowRight':
                     e.preventDefault();
                     moveAvatar(0, 1, 'ArrowRight');
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    repeatLastSpawn();
                     break;
             }
         });
