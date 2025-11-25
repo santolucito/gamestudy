@@ -207,7 +207,7 @@
                 title: "Level 1",
                 avatarStart: { row: 5, col: 1 },
                 dock: { row: 3, col: 3 },
-                spawnSequence: ["blue", "magenta", "lime", "blue", "violet", "yellow", "magenta", "teal", "lime"],
+                spawnPool: ["blue", "magenta", "lime", "blue", "violet", "yellow", "magenta", "teal", "lime"],
                 partialPattern: [],
                 targets: [
                     // Outer perimeter - all blue (16 pieces)
@@ -284,6 +284,19 @@
         let levelCompleted = false;
         let moveCount = 0;
         let spawnIndex = 0;
+        let spawnSequence = [];
+
+        // ============================
+        // HELPER FUNCTIONS
+        // ============================
+        function shuffleArray(array) {
+            // Fisher-Yates shuffle
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
 
         // ============================
         // INITIALIZATION
@@ -333,10 +346,20 @@
             moveCount = 0;
             spawnIndex = 0;
 
+            // Shuffle spawn pool if defined
+            if (level.spawnPool) {
+                spawnSequence = shuffleArray([...level.spawnPool]);
+            } else if (level.spawnSequence) {
+                spawnSequence = [...level.spawnSequence];
+            } else {
+                spawnSequence = [];
+            }
+
             logEvent({
                 type: "level_start",
                 level: currentLevel + 1,
                 levelTitle: level.title,
+                spawnSequence: spawnSequence,
                 timestamp: Date.now()
             });
 
@@ -470,9 +493,9 @@
             const level = LEVELS[currentLevel];
             let colorKey;
 
-            // Use spawn sequence if defined, otherwise use enabledColors randomly
-            if (level.spawnSequence && spawnIndex < level.spawnSequence.length) {
-                colorKey = level.spawnSequence[spawnIndex];
+            // Use shuffled spawn sequence if available
+            if (spawnSequence.length > 0 && spawnIndex < spawnSequence.length) {
+                colorKey = spawnSequence[spawnIndex];
                 spawnIndex++;
             } else if (level.enabledColors) {
                 colorKey = level.enabledColors[Math.floor(Math.random() * level.enabledColors.length)];
