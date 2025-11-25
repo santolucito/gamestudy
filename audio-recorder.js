@@ -1,11 +1,12 @@
 /**
  * Audio Recording Module for Game Study
- * Provides audio recording with speech transcription functionality
+ * Provides audio recording with speech transcription and eye tracking functionality
  *
  * Usage:
- * 1. Include this script in your HTML: <script src="audio-recorder.js"></script>
- * 2. Call AudioRecorder.init(config) with your game-specific configuration
- * 3. The recording UI will be automatically added to the page
+ * 1. Include WebGazer: <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+ * 2. Include this script: <script src="audio-recorder.js"></script>
+ * 3. Call AudioRecorder.init(config) with your game-specific configuration
+ * 4. The recording UI will be automatically added to the page
  */
 
 const AudioRecorder = (function() {
@@ -21,7 +22,9 @@ const AudioRecorder = (function() {
         audioChunks: [],
         gameFrames: [],
         gameId: null,
-        actionCounter: 0
+        actionCounter: 0,
+        gazeData: [],           // Array of [x, y, timestamp] tuples
+        webgazerStarted: false
     };
 
     // Configuration - can be overridden by init()
@@ -29,6 +32,7 @@ const AudioRecorder = (function() {
         gamePrefix: 'game',
         getGameState: () => ({}),  // Function to capture current game state
         onKeystroke: null,         // Optional callback when keystroke is recorded
+        screenToGrid: null,        // Function to convert screen (x,y) to grid coords, returns {x, y} or null if off-grid
     };
 
     // DOM elements
@@ -52,6 +56,64 @@ const AudioRecorder = (function() {
             const v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
+    }
+
+    // Initialize WebGazer
+    async function initWebGazer() {
+        if (typeof webgazer === 'undefined') {
+            console.warn('WebGazer not loaded. Eye tracking will be disabled.');
+            return false;
+        }
+
+        try {
+            await webgazer
+                .setGazeListener((data, timestamp) => {
+                    if (data && state.isRecording) {
+                        const relativeTimestamp = Date.now() - state.startTime;
+
+                        // Convert to grid coordinates if screenToGrid function provided
+                        if (config.screenToGrid) {
+                            const gridPos = config.screenToGrid(data.x, data.y);
+                            if (gridPos) {
+                                // On grid: store as [gridX, gridY, timestamp]
+                                state.gazeData.push([gridPos.x, gridPos.y, relativeTimestamp]);
+                            } else {
+                                // Off grid: store as [null, null, timestamp]
+                                state.gazeData.push([null, null, relativeTimestamp]);
+                            }
+                        } else {
+                            // No conversion function, store raw screen coords
+                            state.gazeData.push([
+                                Math.round(data.x),
+                                Math.round(data.y),
+                                relativeTimestamp
+                            ]);
+                        }
+                    }
+                })
+                .saveDataAcrossSessions(true)
+                .begin();
+
+            // Hide video preview and prediction points for cleaner UI
+            webgazer.showVideoPreview(false).showPredictionPoints(false);
+            state.webgazerStarted = true;
+            console.log('WebGazer initialized successfully');
+            return true;
+        } catch (error) {
+            console.error('Failed to initialize WebGazer:', error);
+            return false;
+        }
+    }
+
+    // Pause/resume WebGazer based on recording state
+    function setWebGazerActive(active) {
+        if (!state.webgazerStarted || typeof webgazer === 'undefined') return;
+
+        if (active) {
+            webgazer.resume();
+        } else {
+            webgazer.pause();
+        }
     }
 
     // Find nearby speech for reasoning context
@@ -193,8 +255,12 @@ const AudioRecorder = (function() {
             state.keystrokes = [];
             state.transcription = [];
             state.gameFrames = [];
+            state.gazeData = [];
             state.gameId = generateGameId();
             state.actionCounter = 0;
+
+            // Resume WebGazer if available
+            setWebGazerActive(true);
 
             updateRecordingUI();
         } catch (error) {
@@ -207,8 +273,13 @@ const AudioRecorder = (function() {
             state.keystrokes = [];
             state.transcription = [];
             state.gameFrames = [];
+            state.gazeData = [];
             state.gameId = generateGameId();
             state.actionCounter = 0;
+
+            // Resume WebGazer if available
+            setWebGazerActive(true);
+
             updateRecordingUI();
         }
     }
@@ -225,6 +296,9 @@ const AudioRecorder = (function() {
         if (state.recognition) {
             state.recognition.stop();
         }
+
+        // Pause WebGazer
+        setWebGazerActive(false);
 
         updateRecordingUI();
     }
@@ -253,11 +327,12 @@ const AudioRecorder = (function() {
             elements.recordBtn.textContent = 'Start Recording';
             elements.recordBtn.classList.remove('recording');
 
-            if (state.keystrokes.length > 0) {
+            if (state.keystrokes.length > 0 || state.gazeData.length > 0) {
                 elements.exportBtn.classList.remove('disabled');
                 elements.exportBtn.disabled = false;
                 const transcriptCount = state.transcription.length;
-                elements.statusDiv.textContent = `Recording complete. ${state.keystrokes.length} actions, ${transcriptCount} speech segments.`;
+                const gazeCount = state.gazeData.length;
+                elements.statusDiv.textContent = `Recording complete. ${state.keystrokes.length} actions, ${transcriptCount} speech, ${gazeCount} gaze points.`;
             } else {
                 elements.statusDiv.textContent = 'Ready to record gameplay and audio';
             }
@@ -274,27 +349,34 @@ const AudioRecorder = (function() {
 
     // Export recording
     function exportRecording() {
-        if (state.gameFrames.length === 0) {
+        if (state.gameFrames.length === 0 && state.gazeData.length === 0) {
             alert('No recording data to export');
             return;
         }
 
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
 
-        // Create JSONL content
-        const jsonlContent = state.gameFrames
-            .map(frame => JSON.stringify(frame))
-            .join('\n');
+        // Create combined export object with game frames and gaze data
+        const exportData = {
+            session: {
+                gameId: state.gameId,
+                startTime: new Date(state.startTime).toISOString(),
+                duration: Date.now() - state.startTime
+            },
+            frames: state.gameFrames,
+            gaze: state.gazeData  // Array of [x, y, timestamp] tuples
+        };
 
-        const jsonlBlob = new Blob([jsonlContent], { type: 'application/jsonl' });
-        const jsonlUrl = URL.createObjectURL(jsonlBlob);
-        const jsonlLink = document.createElement('a');
-        jsonlLink.href = jsonlUrl;
-        jsonlLink.download = `${config.gamePrefix}-${state.gameId}-${timestamp}.jsonl`;
-        document.body.appendChild(jsonlLink);
-        jsonlLink.click();
-        document.body.removeChild(jsonlLink);
-        URL.revokeObjectURL(jsonlUrl);
+        // Create JSON content (single file with all data)
+        const jsonBlob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
+        const jsonUrl = URL.createObjectURL(jsonBlob);
+        const jsonLink = document.createElement('a');
+        jsonLink.href = jsonUrl;
+        jsonLink.download = `${config.gamePrefix}-${state.gameId}-${timestamp}.json`;
+        document.body.appendChild(jsonLink);
+        jsonLink.click();
+        document.body.removeChild(jsonLink);
+        URL.revokeObjectURL(jsonUrl);
 
         // Download audio if available
         if (state.audioChunks.length > 0) {
@@ -310,7 +392,8 @@ const AudioRecorder = (function() {
         }
 
         const audioMsg = state.audioChunks.length > 0 ? '\n- WebM: audio recording' : '';
-        alert(`Exported ${state.gameFrames.length} aligned game frames!\n\nFiles:\n- JSONL: aligned game data${audioMsg}`);
+        const gazeMsg = state.gazeData.length > 0 ? `\n- ${state.gazeData.length} gaze points` : '';
+        alert(`Exported ${state.gameFrames.length} game frames!${gazeMsg}\n\nFiles:\n- JSON: game data with gaze${audioMsg}`);
     }
 
     // Create and inject the recording UI
@@ -409,7 +492,7 @@ const AudioRecorder = (function() {
     }
 
     // Initialize the recorder
-    function init(userConfig = {}) {
+    async function init(userConfig = {}) {
         // Merge user config
         config = { ...config, ...userConfig };
 
@@ -418,6 +501,15 @@ const AudioRecorder = (function() {
 
         // Setup keyboard listeners
         setupKeyboardListeners();
+
+        // Initialize WebGazer (async, non-blocking)
+        initWebGazer().then(success => {
+            if (success) {
+                updateStatusMessage('Ready to record (eye tracking enabled)');
+                // Pause until recording starts
+                setWebGazerActive(false);
+            }
+        });
 
         // Insert UI into page
         // Look for common insertion points
