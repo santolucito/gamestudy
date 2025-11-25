@@ -148,6 +148,7 @@
         let levels = [];
         let currentLevelIndex = 0;
         let isBKeyPressed = false; // Track if B key is being held
+        let isTransitioning = false; // Prevent multiple auto-advance triggers
         let gameState = {
             grid: [],
             chunks: [],
@@ -447,8 +448,13 @@
 
         // Check if path is complete and advance to next level
         function checkAndAdvanceLevel() {
+            // Prevent multiple triggers
+            if (isTransitioning) return;
+
             if (canReachGoal()) {
-                // Path is complete - wait 1 second then advance
+                isTransitioning = true; // Lock to prevent re-triggering
+
+                // Path is complete - wait 1 second before showing vehicle move to goal
                 setTimeout(() => {
                     // Clear vehicle(s) from old position(s)
                     for (let row = 0; row < 7; row++) {
@@ -468,23 +474,27 @@
 
                     renderGrid();
 
-                    // Win! Move to next level
+                    // Win! Show ripple and let player see the completed state
                     createRipple();
 
-                    const gridElement = document.getElementById('grid');
-                    gridElement.classList.add('fade-out');
-
+                    // Wait 1.5 seconds to let player see vehicle at goal, then fade out
                     setTimeout(() => {
-                        currentLevelIndex++;
-                        if (currentLevelIndex < levels.length) {
-                            loadLevel(currentLevelIndex);
-                        } else {
-                            // Game complete - show restart button
-                            gridElement.classList.remove('fade-out');
-                            document.getElementById('restart-button').style.display = 'block';
-                        }
-                    }, 800);
-                }, 1000); // 1 second delay before transition
+                        const gridElement = document.getElementById('grid');
+                        gridElement.classList.add('fade-out');
+
+                        setTimeout(() => {
+                            currentLevelIndex++;
+                            isTransitioning = false; // Reset for next level
+                            if (currentLevelIndex < levels.length) {
+                                loadLevel(currentLevelIndex);
+                            } else {
+                                // Game complete - show restart button
+                                gridElement.classList.remove('fade-out');
+                                document.getElementById('restart-button').style.display = 'block';
+                            }
+                        }, 800);
+                    }, 1500); // Wait 1.5 seconds before fading out
+                }, 1000); // 1 second delay before moving vehicle to goal
             }
         }
 
