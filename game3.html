@@ -502,8 +502,15 @@
         }
 
         // Pathfinding: BFS to check if vehicle(s) can reach goal
+        // Requires: a piece must be placed on the goal position (goal cell must be track, not empty)
         function canReachGoal() {
             const goal = gameState.goalPos;
+
+            // First check: the goal position must have a piece on it (value 1 = track)
+            // If it's still 4 (goal marker), no piece has been placed there yet
+            if (gameState.grid[goal.row][goal.col] === 4) {
+                return false; // Goal not yet covered by a piece
+            }
 
             // Find all vehicle positions in the grid
             const vehiclePositions = [];
