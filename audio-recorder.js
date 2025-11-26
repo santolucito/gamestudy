@@ -384,24 +384,73 @@ const AudioRecorder = (function() {
             }))
         };
 
-        // Create JSON content with pretty formatting
-        // Custom formatting to keep gameStateBefore rows on single lines
-        let jsonString = JSON.stringify(exportData, null, 2);
-        // Fix gameStateBefore arrays to be compact rows
-        jsonString = jsonString.replace(/"gameStateBefore": \[\s*\[[\s\S]*?\]\s*\]/g, (match) => {
-            // Parse the array from the match
-            const arrayMatch = match.match(/"gameStateBefore": (\[[\s\S]*?\])\s*$/);
-            if (arrayMatch) {
-                try {
-                    const arr = JSON.parse(arrayMatch[1]);
-                    if (Array.isArray(arr) && Array.isArray(arr[0])) {
-                        const rows = arr.map(row => JSON.stringify(row));
-                        return `"gameStateBefore": [\n        ${rows.join(',\n        ')}\n      ]`;
-                    }
-                } catch (e) {}
-            }
-            return match;
-        });
+        // Custom JSON stringify that keeps grid rows on single lines
+        function formatExportData(data) {
+            const lines = [];
+            lines.push('{');
+            lines.push(`  "sessionStart": ${JSON.stringify(data.sessionStart)},`);
+            lines.push(`  "sessionEnd": ${JSON.stringify(data.sessionEnd)},`);
+            lines.push(`  "gameId": ${JSON.stringify(data.gameId)},`);
+
+            // Events array
+            lines.push('  "events": [');
+            data.events.forEach((event, i) => {
+                lines.push('    {');
+                lines.push(`      "timestamp": ${JSON.stringify(event.timestamp)},`);
+                lines.push(`      "level": ${event.level},`);
+                lines.push(`      "key": ${JSON.stringify(event.key)},`);
+                lines.push(`      "action": ${JSON.stringify(event.action)},`);
+
+                // Format gameStateBefore with each row on one line
+                if (event.gameStateBefore && Array.isArray(event.gameStateBefore)) {
+                    lines.push('      "gameStateBefore": [');
+                    event.gameStateBefore.forEach((row, rowIdx) => {
+                        const comma = rowIdx < event.gameStateBefore.length - 1 ? ',' : '';
+                        lines.push(`        ${JSON.stringify(row)}${comma}`);
+                    });
+                    lines.push('      ],');
+                } else {
+                    lines.push(`      "gameStateBefore": null,`);
+                }
+
+                lines.push(`      "selectedChunk": ${event.selectedChunk !== null ? event.selectedChunk : 'null'},`);
+                lines.push(`      "vehiclePos": ${JSON.stringify(event.vehiclePos)},`);
+                lines.push(`      "goalPos": ${JSON.stringify(event.goalPos)}`);
+
+                const eventComma = i < data.events.length - 1 ? ',' : '';
+                lines.push(`    }${eventComma}`);
+            });
+            lines.push('  ],');
+
+            // Transcription array
+            lines.push('  "transcription": [');
+            data.transcription.forEach((t, i) => {
+                const comma = i < data.transcription.length - 1 ? ',' : '';
+                lines.push(`    {`);
+                lines.push(`      "timestamp": ${JSON.stringify(t.timestamp)},`);
+                lines.push(`      "text": ${JSON.stringify(t.text)},`);
+                lines.push(`      "confidence": ${t.confidence}`);
+                lines.push(`    }${comma}`);
+            });
+            lines.push('  ],');
+
+            // Gaze array
+            lines.push('  "gaze": [');
+            data.gaze.forEach((g, i) => {
+                const comma = i < data.gaze.length - 1 ? ',' : '';
+                lines.push(`    {`);
+                lines.push(`      "x": ${g.x !== null ? g.x : 'null'},`);
+                lines.push(`      "y": ${g.y !== null ? g.y : 'null'},`);
+                lines.push(`      "timestamp": ${JSON.stringify(g.timestamp)}`);
+                lines.push(`    }${comma}`);
+            });
+            lines.push('  ]');
+
+            lines.push('}');
+            return lines.join('\n');
+        }
+
+        const jsonString = formatExportData(exportData);
         const jsonBlob = new Blob([jsonString], { type: 'application/json' });
         const jsonUrl = URL.createObjectURL(jsonBlob);
         const jsonLink = document.createElement('a');
