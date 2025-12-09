@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #game-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #ripple-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            border: 7px solid #32CD32;
+            opacity: 2;
+        }
+
+        @keyframes ripple {
+            0% {
+                width: 0;
+                height: 0;
+                opacity: 0.8;
+            }
+            100% {
+                width: 400px;
+                height: 400px;
+                opacity: 0;
+            }
+        }
+
+        #instructions {
+            margin-bottom: 20px;
+            font-size: 14px;
+            padding: 15px;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border-radius: 8px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #instructions.fade-out {
+            opacity: 0;
+        }
+
+        #grid {
+            display: inline-grid;
+            grid-template-columns: repeat(5, 126px);
+            grid-template-rows: repeat(5, 126px);
+            gap: 2px;
+            background-color: #e0e0e0;
+            padding: 2px;
+            border: 3px solid #e0e0e0;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #grid.fade-out {
+            opacity: 0;
+        }
+
+        #button-container {
+            display: none;
+        }
+
+        #restart-button, #download-button, #skip-button {
+            position: fixed;
+            top: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border: 3px solid #1a1a1a;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        #restart-button {
+            left: 20px;
+            display: none;
+        }
+
+        #download-button {
+            right: 20px;
+            display: block;
+        }
+
+        #skip-button {
+            bottom: 20px;
+            right: 20px;
+            top: auto;
+            display: block;
+        }
+
+        #restart-button:hover, #download-button:hover, #skip-button:hover {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        .cell {
+            width: 126px;
+            height: 126px;
+            border: 1px solid #e0e0e0;
+            box-sizing: border-box;
+            background-color: #FFFFFF;
+        }
+
+        .cell.transformer {
+            background-color: #D3D3D3;
+        }
+
+        .cell.goal {
+            border: 4px solid;
+            background-color: #FFFFFF;
+        }
+
+        .cell.active-tile {
+            border: 3px dotted #888888;
+        }
+
+        .cell.avatar {
+            /* Avatar color set dynamically */
+        }
+
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        There are no instructions for this game, intentionally.<br>
+        Use the arrow keys to discover the controls, rules, and objective.
+    </div>
+    <div id="game-container">
+        <div id="ripple-container"></div>
+        <div id="grid"></div>
+    </div>
+    <button id="restart-button">Start Over</button>
+    <button id="download-button">Download Data</button>
+    <button id="skip-button">Skip Level</button>
+
+    <script>
+        // Color definitions
+        const COLORS = {
+            EMPTY: '#FFFFFF',
+            GREY: '#D3D3D3',
+            YELLOW: '#DDCC77',
+            PINK: '#CC6677',
+            BLUE: '#ADD8E6',
+            TEAL: '#44AA99'
+        };
+
+        // Game state
+        let levels = [];
+        let currentLevelIndex = 0;
+        let gameState = {
+            grid: [],
+            avatarPos: { x: 0, y: 0 },
+            avatarColor: 'yellow',
+            avatarDirection: 'vertical', // 'vertical' = up/down, 'horizontal' = left/right
+            currentGameState: 'A', // 'A' or 'B'
+            goalPos: { x: 0, y: 0 },
+            goalColor: 'pink',
+            transformerPos: { x: 0, y: 0 },
+            tiles: {
+                stateA: [],
+                stateB: []
+            },
+            moveCount: 0
+        };
+
+        // Data collection
+        let sessionData = {
+            sessionStart: new Date().toISOString(),
+            movements: []
+        };
+
+        // Pixel number to grid coordinates (1-25 to {x, y})
+        function pixelToCoords(pixel) {
+            const index = pixel - 1;
+            return {
+                x: index % 5,
+                y: Math.floor(index / 5)
+            };
+        }
+
+        // Grid coordinates to pixel number
+        function coordsToPixel(x, y) {
+            return y * 5 + x + 1;
+        }
+
+        // Initialize grid display
+        function initGrid() {
+            const gridElement = document.getElementById('grid');
+            gridElement.innerHTML = '';
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < 5; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${x}-${y}`;
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        // Load level
+        function loadLevel(levelIndex) {
+            if (levelIndex >= levels.length) {
+                return;
+            }
+
+            const level = levels[levelIndex];
+
+            // Reset game state
+            gameState.avatarPos = { ...level.avatarStart };
+            gameState.avatarColor = level.avatarColor;
+            gameState.avatarDirection = level.avatarDirection;
+            gameState.currentGameState = level.startingGameState;
+            gameState.goalPos = { ...level.goalPos };
+            gameState.goalColor = level.goalColor;
+            gameState.transformerPos = { ...level.transformerPos };
+            gameState.tiles = JSON.parse(JSON.stringify(level.tiles));
+            gameState.moveCount = 0;
+
+            // Update instructions display
+            const instructionsElement = document.getElementById('instructions');
+            if (level.instructions) {
+                instructionsElement.innerHTML = level.instructions;
+                instructionsElement.style.display = 'block';
+            } else {
+                instructionsElement.style.display = 'none';
+            }
+
+            renderGrid();
+
+            // Fade in the new level
+            const gridElement = document.getElementById('grid');
+            gridElement.classList.remove('fade-out');
+            instructionsElement.classList.remove('fade-out');
+        }
+
+        // Get active tiles for current game state
+        function getActiveTiles() {
+            if (gameState.currentGameState === 'A') {
+                return gameState.tiles.stateA;
+            } else {
+                return gameState.tiles.stateB;
+            }
+        }
+
+        // Check if position has an active tile
+        function getTileAtPosition(x, y) {
+            const activeTiles = getActiveTiles();
+            for (const tile of activeTiles) {
+                if (tile.x === x && tile.y === y) {
+                    return tile;
+                }
+            }
+            return null;
+        }
+
+        // Render the grid
+        function renderGrid() {
+            const activeTiles = getActiveTiles();
+
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < 5; x++) {
+                    const cell = document.getElementById(`cell-${x}-${y}`);
+
+                    // Reset cell classes and styles
+                    cell.className = 'cell';
+                    cell.style.backgroundColor = COLORS.EMPTY;
+                    cell.style.borderColor = '#e0e0e0';
+                    cell.style.borderStyle = 'solid';
+                    cell.style.borderWidth = '1px';
+
+                    // Check if this is the transformer
+                    if (x === gameState.transformerPos.x && y === gameState.transformerPos.y) {
+                        cell.classList.add('transformer');
+                        cell.style.backgroundColor = COLORS.GREY;
+                    }
+
+                    // Check if this is the goal
+                    if (x === gameState.goalPos.x && y === gameState.goalPos.y) {
+                        cell.classList.add('goal');
+                        cell.style.borderColor = COLORS[gameState.goalColor.toUpperCase()];
+                        cell.style.borderWidth = '4px';
+                        cell.style.borderStyle = 'solid';
+                        cell.style.backgroundColor = COLORS.EMPTY;
+                    }
+
+                    // Check if this position has an active tile (direction/color changer)
+                    const tile = getTileAtPosition(x, y);
+                    if (tile) {
+                        cell.classList.add('active-tile');
+                        cell.style.borderStyle = 'dotted';
+                        cell.style.borderWidth = '3px';
+                        cell.style.borderColor = '#888888';
+                    }
+
+                    // Draw avatar (on top of everything)
+                    if (gameState.avatarPos.x === x && gameState.avatarPos.y === y) {
+                        cell.classList.add('avatar');
+                        cell.style.backgroundColor = COLORS[gameState.avatarColor.toUpperCase()];
+                    }
+                }
+            }
+        }
+
+        // Check if position is valid for movement
+        function isValidPosition(x, y) {
+            // Check grid bounds (no wraparound for this level)
+            if (x < 0 || x >= 5 || y < 0 || y >= 5) return false;
+            return true;
+        }
+
+        // Check if move direction is allowed
+        function canMoveInDirection(dx, dy) {
+            if (gameState.avatarDirection === 'vertical') {
+                // Can only move up or down
+                return dx === 0 && (dy === -1 || dy === 1);
+            } else {
+                // Can only move left or right
+                return dy === 0 && (dx === -1 || dx === 1);
+            }
+        }
+
+        // Process tile effect after moving onto it
+        function processTileEffect(x, y) {
+            // Check for transformer
+            if (x === gameState.transformerPos.x && y === gameState.transformerPos.y) {
+                // Toggle game state
+                gameState.currentGameState = gameState.currentGameState === 'A' ? 'B' : 'A';
+                return;
+            }
+
+            // Check for active tiles
+            const tile = getTileAtPosition(x, y);
+            if (tile) {
+                if (tile.type === 'direction') {
+                    // Switch direction
+                    gameState.avatarDirection = gameState.avatarDirection === 'vertical' ? 'horizontal' : 'vertical';
+                } else if (tile.type === 'color') {
+                    // Change color
+                    gameState.avatarColor = tile.newColor;
+                }
+            }
+        }
+
+        // Check win condition
+        function checkWinCondition() {
+            // Must be on goal position with correct color
+            const onGoal = gameState.avatarPos.x === gameState.goalPos.x &&
+                          gameState.avatarPos.y === gameState.goalPos.y;
+            const correctColor = gameState.avatarColor === gameState.goalColor;
+
+            return onGoal && correctColor;
+        }
+
+        // Move avatar
+        function moveAvatar(dx, dy) {
+            // Check if direction is allowed
+            if (!canMoveInDirection(dx, dy)) {
+                return;
+            }
+
+            const newX = gameState.avatarPos.x + dx;
+            const newY = gameState.avatarPos.y + dy;
+
+            if (!isValidPosition(newX, newY)) {
+                return;
+            }
+
+            // Move avatar
+            gameState.avatarPos.x = newX;
+            gameState.avatarPos.y = newY;
+            gameState.moveCount++;
+
+            // Process any tile effects at new position
+            processTileEffect(newX, newY);
+
+            renderGrid();
+
+            // Check win condition
+            if (checkWinCondition()) {
+                // Create ripple effect
+                createRipple();
+
+                // Fade out
+                const gridElement = document.getElementById('grid');
+                const instructionsElement = document.getElementById('instructions');
+                gridElement.classList.add('fade-out');
+                instructionsElement.classList.add('fade-out');
+
+                setTimeout(() => {
+                    currentLevelIndex++;
+                    if (currentLevelIndex < levels.length) {
+                        loadLevel(currentLevelIndex);
+                    } else {
+                        // Game complete - show restart button
+                        gridElement.classList.remove('fade-out');
+                        instructionsElement.classList.remove('fade-out');
+                        document.getElementById('restart-button').style.display = 'block';
+                    }
+                }, 800);
+            }
+        }
+
+        // Create ripple effect on win
+        function createRipple() {
+            const container = document.getElementById('ripple-container');
+
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const ripple = document.createElement('div');
+                    ripple.className = 'ripple';
+                    ripple.style.animation = 'ripple 1s ease-out';
+                    container.appendChild(ripple);
+
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 1000);
+                }, i * 200);
+            }
+        }
+
+        // Generate game state matrix for logging
+        function generateGameStateMatrix() {
+            const matrix = Array(5).fill(null).map(() => Array(5).fill('E'));
+
+            // Mark transformer
+            matrix[gameState.transformerPos.y][gameState.transformerPos.x] = 'T';
+
+            // Mark goal
+            matrix[gameState.goalPos.y][gameState.goalPos.x] = 'G';
+
+            // Mark active tiles
+            const activeTiles = getActiveTiles();
+            for (const tile of activeTiles) {
+                if (tile.type === 'direction') {
+                    matrix[tile.y][tile.x] = 'D';
+                } else if (tile.type === 'color') {
+                    matrix[tile.y][tile.x] = 'C';
+                }
+            }
+
+            // Mark avatar
+            matrix[gameState.avatarPos.y][gameState.avatarPos.x] = 'A';
+
+            return matrix;
+        }
+
+        // Log movement data
+        function logMovement(key, direction, dx, dy) {
+            const movementData = {
+                timestamp: new Date().toISOString(),
+                level: currentLevelIndex + 1,
+                key: key,
+                direction: direction,
+                positionBefore: { x: gameState.avatarPos.x, y: gameState.avatarPos.y },
+                colorBefore: gameState.avatarColor,
+                directionCapability: gameState.avatarDirection,
+                currentGameState: gameState.currentGameState,
+                delta: { dx: dx, dy: dy },
+                gameStateBefore: generateGameStateMatrix()
+            };
+            sessionData.movements.push(movementData);
+        }
+
+        // Handle keyboard input
+        document.addEventListener('keydown', (e) => {
+            if (currentLevelIndex >= levels.length) return;
+
+            switch(e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    logMovement('ArrowUp', 'up', 0, -1);
+                    moveAvatar(0, -1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    logMovement('ArrowDown', 'down', 0, 1);
+                    moveAvatar(0, 1);
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    logMovement('ArrowLeft', 'left', -1, 0);
+                    moveAvatar(-1, 0);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    logMovement('ArrowRight', 'right', 1, 0);
+                    moveAvatar(1, 0);
+                    break;
+                case 'r':
+                case 'R':
+                    e.preventDefault();
+                    loadLevel(currentLevelIndex);
+                    break;
+            }
+        });
+
+        // Handle restart button click
+        document.getElementById('restart-button').addEventListener('click', () => {
+            currentLevelIndex = 0;
+            document.getElementById('restart-button').style.display = 'none';
+            loadLevel(currentLevelIndex);
+        });
+
+        // Handle skip level button click (for development)
+        document.getElementById('skip-button').addEventListener('click', () => {
+            currentLevelIndex++;
+            if (currentLevelIndex < levels.length) {
+                loadLevel(currentLevelIndex);
+            } else {
+                // Game complete - show restart button
+                document.getElementById('restart-button').style.display = 'block';
+            }
+        });
+
+        // Handle download button click
+        document.getElementById('download-button').addEventListener('click', () => {
+            sessionData.sessionEnd = new Date().toISOString();
+
+            let dataStr = JSON.stringify(sessionData, null, 2);
+
+            // Post-process to compress gameStateBefore arrays
+            dataStr = dataStr.replace(
+                /"gameStateBefore":\s*\[\s*\[\s*("[A-Z]",?\s*)+\]\s*(,\s*\[\s*("[A-Z]",?\s*)+\]\s*)*\]/g,
+                (match) => {
+                    const letters = match.match(/"[A-Z]"/g);
+                    if (!letters) return match;
+
+                    const rows = [];
+                    for (let i = 0; i < letters.length; i += 5) {
+                        rows.push('[' + letters.slice(i, i + 5).join(',') + ']');
+                    }
+
+                    return '"gameStateBefore": [\n        ' + rows.join(',\n        ') + '\n      ]';
+                }
+            );
+
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `game-session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Level definitions
+        function level2() {
+            // Grid reference:
+            // 1   2   3   4   5
+            // 6   7   8   9   10
+            // 11  12  13  14  15
+            // 16  17  18  19  20
+            // 21  22  23  24  25
+
+            const avatarStart = pixelToCoords(3);   // Pixel 3 = (2, 0)
+            const transformerPos = pixelToCoords(11); // Pixel 11 = (0, 2)
+            const goalPos = pixelToCoords(23);       // Pixel 23 = (2, 4)
+            const pixel13 = pixelToCoords(13);       // Pixel 13 = (2, 2) center
+            const pixel15 = pixelToCoords(15);       // Pixel 15 = (4, 2)
+
+            return {
+                id: 2,
+                name: "Level 2",
+                instructions: "There are no instructions for this game, intentionally.<br>Use the arrow keys to discover the controls, rules, and objective.",
+                avatarStart: avatarStart,
+                avatarColor: 'yellow',
+                avatarDirection: 'vertical', // up/down
+                startingGameState: 'A',
+                goalPos: goalPos,
+                goalColor: 'pink',
+                transformerPos: transformerPos,
+                tiles: {
+                    stateA: [
+                        { x: pixel13.x, y: pixel13.y, type: 'direction' }, // Direction changer at center
+                        { x: pixel15.x, y: pixel15.y, type: 'direction' }  // Direction changer at pixel 15
+                    ],
+                    stateB: [
+                        // Pixel 13 disabled (not in list)
+                        { x: pixel15.x, y: pixel15.y, type: 'color', newColor: 'pink' } // Color changer at pixel 15
+                    ]
+                }
+            };
+        }
+
+        // Build levels array
+        levels = [
+            level2()
+        ];
+
+        // Start game
+        initGrid();
+        loadLevel(0);
+    </script>
+</body>
+</html>
