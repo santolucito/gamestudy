@@ -76,6 +76,17 @@
     </style>
 </head>
 <body>
+    <script>
+    // Check if calibration is needed before showing game selection
+    (function() {
+        var calibrated = localStorage.getItem('webgazerCalibrationComplete') === 'true';
+        var hasData = localStorage.getItem('webgazerGlobalData') !== null;
+        if (!calibrated || !hasData) {
+            window.location.href = 'calibration.html';
+        }
+    })();
+    </script>
+
     <div class="container">
         <h1>Causal Reasoning Study</h1>
         <p class="subtitle">Designed by: Rachel Papirmeister</p>
@@ -97,6 +108,11 @@
 
             <a href="game3.html" class="game-button">
                 <div>Puzzle Game 3</div>
+            </a>
+
+            <a href="calibration.html?force=true" class="game-button" style="background-color: #f8f8f8;">
+                <div>Recalibrate Eye Tracking</div>
+                <div class="game-description">Redo the calibration if needed</div>
             </a>
 
         </div>

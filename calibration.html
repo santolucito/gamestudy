@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eye Tracking Calibration - Causal Reasoning Study</title>
+    <link rel="stylesheet" href="calibration.css">
+</head>
+<body>
+    <!-- Phase 1: Camera Permission & Setup -->
+    <div id="setup-phase" class="phase">
+        <div class="container">
+            <h1>Eye Tracking Setup</h1>
+            <p class="instructions">This study uses eye tracking to understand how you solve puzzles.</p>
+            <p class="instructions">Please allow camera access when prompted.</p>
+            <div id="camera-status">Waiting for camera permission...</div>
+            <button id="start-calibration-btn" disabled>Begin Calibration</button>
+        </div>
+    </div>
+
+    <!-- Phase 2: Calibration -->
+    <div id="calibration-phase" class="phase hidden">
+        <div id="progress-bar">
+            <div id="progress-fill"></div>
+            <span id="progress-text">0 / 9 points</span>
+        </div>
+
+        <div id="calibration-instructions">
+            <p>Click on each red dot 5 times until it turns yellow.</p>
+            <p>Look at the dot while clicking.</p>
+        </div>
+
+        <!-- 9 calibration points (3x3 grid) -->
+        <button class="calibration-point" id="pt1" data-clicks="0"></button>
+        <button class="calibration-point" id="pt2" data-clicks="0"></button>
+        <button class="calibration-point" id="pt3" data-clicks="0"></button>
+        <button class="calibration-point" id="pt4" data-clicks="0"></button>
+        <button class="calibration-point" id="pt5" data-clicks="0"></button>
+        <button class="calibration-point" id="pt6" data-clicks="0"></button>
+        <button class="calibration-point" id="pt7" data-clicks="0"></button>
+        <button class="calibration-point" id="pt8" data-clicks="0"></button>
+        <button class="calibration-point" id="pt9" data-clicks="0"></button>
+    </div>
+
+    <!-- Phase 3: Completion -->
+    <div id="completion-phase" class="phase hidden">
+        <div class="container">
+            <h1>Calibration Complete!</h1>
+            <p class="instructions">Eye tracking is now ready.</p>
+            <p class="instructions">Your calibration will be saved for this session.</p>
+            <button id="continue-btn">Continue to Games</button>
+            <button id="recalibrate-btn" class="secondary">Recalibrate</button>
+        </div>
+    </div>
+
+    <!-- Phase 4: Error Handling -->
+    <div id="error-phase" class="phase hidden">
+        <div class="container">
+            <h1>Camera Not Available</h1>
+            <p class="instructions">Eye tracking requires camera access to function.</p>
+            <div id="error-message"></div>
+            <button id="retry-btn">Try Again</button>
+            <br>
+            <a href="index.html" class="skip-link">Continue without eye tracking</a>
+        </div>
+    </div>
+
+    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+    <script src="calibration.js"></script>
+</body>
+</html>
