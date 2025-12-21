@@ -161,13 +161,21 @@ const Calibration = (function() {
      * Navigate to games (or return URL if specified)
      */
     function continueToGames() {
-        const params = new URLSearchParams(window.location.search);
-        const returnUrl = params.get('return');
-        if (returnUrl && returnUrl.startsWith('/')) {
-            window.location.href = returnUrl;
-        } else {
-            window.location.href = 'index.html';
+        // Pause WebGazer to force it to save data to localStorage before navigating
+        if (webgazerReady && typeof webgazer !== 'undefined') {
+            webgazer.pause();
         }
+
+        // Small delay to ensure data is saved
+        setTimeout(function() {
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get('return');
+            if (returnUrl && returnUrl.startsWith('/')) {
+                window.location.href = returnUrl;
+            } else {
+                window.location.href = 'index.html';
+            }
+        }, 100);
     }
 
     /**
