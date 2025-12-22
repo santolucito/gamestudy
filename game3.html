@@ -134,7 +134,7 @@
     <script>
     // Verify calibration before allowing game play
     (function() {
-        var calibrated = localStorage.getItem('webgazerCalibrationComplete') === 'true';
+        var calibrated = sessionStorage.getItem('webgazerCalibrationComplete') === 'true';
         if (!calibrated) {
             var returnUrl = encodeURIComponent(window.location.pathname);
             window.location.href = 'calibration.html?return=' + returnUrl;
@@ -171,6 +171,13 @@
 
         // Session logging
         let sessionData = {
+            legend: {
+                "V": "Vehicle - the player's piece that must reach the goal",
+                "E": "Empty - background cell with no piece",
+                "M": "Movable piece - can be moved by the player",
+                "F": "Fixed piece - cannot be moved",
+                "G": "Goal - destination for the vehicle"
+            },
             sessionStart: new Date().toISOString(),
             events: []
         };
@@ -754,6 +761,13 @@
 
             // Reset session data
             sessionData = {
+                legend: {
+                    "V": "Vehicle - the player's piece that must reach the goal",
+                    "E": "Empty - background cell with no piece",
+                    "M": "Movable piece - can be moved by the player",
+                    "F": "Fixed piece - cannot be moved",
+                    "G": "Goal - destination for the vehicle"
+                },
                 sessionStart: new Date().toISOString(),
                 events: []
             };
@@ -808,11 +822,28 @@
         AudioRecorder.init({
             gamePrefix: 'puzzle-game3',
             getGameState: function() {
+                // Calculate top-left position of selected chunk
+                let selectedChunkPosition = null;
+                const selectedChunk = gameState.chunks[gameState.selectedChunkIndex];
+                if (selectedChunk && selectedChunk.length > 0) {
+                    // Find the top-left-most cell (minimum row, then minimum col)
+                    let minRow = selectedChunk[0][0];
+                    let minCol = selectedChunk[0][1];
+                    for (const [row, col] of selectedChunk) {
+                        if (row < minRow || (row === minRow && col < minCol)) {
+                            minRow = row;
+                            minCol = col;
+                        }
+                    }
+                    selectedChunkPosition = { row: minRow, col: minCol };
+                }
+
                 return {
                     level: currentLevelIndex + 1,
                     vehiclePos: { ...gameState.vehiclePos },
                     goalPos: { ...gameState.goalPos },
                     selectedChunkIndex: gameState.selectedChunkIndex,
+                    selectedChunkPosition: selectedChunkPosition,
                     chunks: gameState.chunks.map(chunk => chunk.map(cell => [...cell])),
                     gameStateMatrix: generateGameStateMatrix(),
                     isBKeyPressed: isBKeyPressed
@@ -835,6 +866,17 @@
                 const row = Math.floor((screenY - rect.top) / cellHeight);
 
                 return { x: Math.min(col, 6), y: Math.min(row, 6) };
+            },
+            keyActionMap: {
+                'ArrowUp': 'move_chunk_up',
+                'ArrowDown': 'move_chunk_down',
+                'ArrowLeft': 'move_chunk_left',
+                'ArrowRight': 'move_chunk_right',
+                ' ': 'cycle_chunk',
+                'b': 'visualize_board',
+                'B': 'visualize_board',
+                'r': 'restart_level',
+                'R': 'restart_level'
             }
         });
     </script>

@@ -20,7 +20,6 @@ const AudioRecorder = (function() {
         mediaRecorder: null,
         recognition: null,
         audioChunks: [],
-        gameFrames: [],
         gameId: null,
         actionCounter: 0,
         gazeData: [],           // Array of [x, y, timestamp] tuples
@@ -33,6 +32,7 @@ const AudioRecorder = (function() {
         getGameState: () => ({}),  // Function to capture current game state
         onKeystroke: null,         // Optional callback when keystroke is recorded
         screenToGrid: null,        // Function to convert screen (x,y) to grid coords, returns {x, y} or null if off-grid
+        keyActionMap: {},          // Map of key names to semantic action names (e.g., {'ArrowUp': 'move_chunk_up'})
     };
 
     // DOM elements
@@ -139,31 +139,8 @@ const AudioRecorder = (function() {
         if (!state.isRecording) return;
 
         const frame = config.getGameState();
-        const absoluteTimestamp = new Date(state.startTime + timestamp).toISOString();
-        const reasoning = findNearbyReasoning(timestamp);
 
-        const gameFrame = {
-            timestamp: absoluteTimestamp,
-            data: {
-                game_id: state.gameId,
-                frame: frame,
-                action_input: {
-                    id: state.actionCounter++,
-                    data: {
-                        game_id: state.gameId,
-                        key: key,
-                        action: action,
-                        timestamp: timestamp
-                    },
-                    reasoning: reasoning
-                },
-                guid: generateGuid()
-            }
-        };
-
-        state.gameFrames.push(gameFrame);
-
-        // Also keep simple format for backwards compatibility
+        // Keep simple format for export
         state.keystrokes.push({
             key: key,
             action: action,
@@ -254,7 +231,6 @@ const AudioRecorder = (function() {
             state.startTime = Date.now();
             state.keystrokes = [];
             state.transcription = [];
-            state.gameFrames = [];
             state.gazeData = [];
             state.gameId = generateGameId();
             state.actionCounter = 0;
@@ -272,7 +248,6 @@ const AudioRecorder = (function() {
             state.startTime = Date.now();
             state.keystrokes = [];
             state.transcription = [];
-            state.gameFrames = [];
             state.gazeData = [];
             state.gameId = generateGameId();
             state.actionCounter = 0;
@@ -369,7 +344,7 @@ const AudioRecorder = (function() {
                 key: ks.key,
                 action: ks.action,
                 gameStateBefore: ks.gameState.gameStateMatrix || null,
-                selectedChunk: ks.gameState.selectedChunkIndex !== undefined ? ks.gameState.selectedChunkIndex : null,
+                selectedChunkPosition: ks.gameState.selectedChunkPosition || null,
                 vehiclePos: ks.gameState.vehiclePos || null,
                 goalPos: ks.gameState.goalPos || null,
                 // Include original fields from gameFrames
@@ -419,7 +394,7 @@ const AudioRecorder = (function() {
                     lines.push(`      "gameStateBefore": null,`);
                 }
 
-                lines.push(`      "selectedChunk": ${event.selectedChunk !== null ? event.selectedChunk : 'null'},`);
+                lines.push(`      "selectedChunkPosition": ${JSON.stringify(event.selectedChunkPosition)},`);
                 lines.push(`      "vehiclePos": ${JSON.stringify(event.vehiclePos)},`);
                 lines.push(`      "goalPos": ${JSON.stringify(event.goalPos)},`);
                 lines.push(`      "actionId": ${event.actionId},`);
@@ -571,17 +546,16 @@ const AudioRecorder = (function() {
     function setupKeyboardListeners() {
         document.addEventListener('keydown', (e) => {
             if (state.isRecording) {
-                const timestamp = Date.now() - state.startTime;
-                recordKeystroke(e.key, 'keydown', timestamp);
+                // Only log keys that have a mapped action
+                const action = config.keyActionMap[e.key];
+                if (action) {
+                    const timestamp = Date.now() - state.startTime;
+                    recordKeystroke(e.key, action, timestamp);
+                }
             }
         });
 
-        document.addEventListener('keyup', (e) => {
-            if (state.isRecording) {
-                const timestamp = Date.now() - state.startTime;
-                recordKeystroke(e.key, 'keyup', timestamp);
-            }
-        });
+        // No keyup logging - we only care about keydown actions
     }
 
     // Initialize the recorder
