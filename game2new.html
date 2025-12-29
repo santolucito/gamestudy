@@ -212,7 +212,7 @@
             currentGameState: 'A', // 'A' or 'B'
             goalPos: { x: 0, y: 0 },
             goalColor: 'pink',
-            transformerPos: { x: 0, y: 0 },
+            transformerPositions: [], // Array of {x, y} for multiple triggers
             tiles: {
                 stateA: [],
                 stateB: []
@@ -269,7 +269,14 @@
             gameState.currentGameState = level.startingGameState;
             gameState.goalPos = { ...level.goalPos };
             gameState.goalColor = level.goalColor;
-            gameState.transformerPos = { ...level.transformerPos };
+            // Support both single transformer (transformerPos) and multiple (transformerPositions)
+            if (level.transformerPositions) {
+                gameState.transformerPositions = level.transformerPositions.map(pos => ({ ...pos }));
+            } else if (level.transformerPos) {
+                gameState.transformerPositions = [{ ...level.transformerPos }];
+            } else {
+                gameState.transformerPositions = [];
+            }
             gameState.tiles = JSON.parse(JSON.stringify(level.tiles));
             gameState.moveCount = 0;
 
@@ -325,8 +332,9 @@
                     cell.style.borderStyle = 'solid';
                     cell.style.borderWidth = '1px';
 
-                    // Check if this is the transformer
-                    if (x === gameState.transformerPos.x && y === gameState.transformerPos.y) {
+                    // Check if this is a transformer (support multiple)
+                    const isTransformer = gameState.transformerPositions.some(pos => pos.x === x && pos.y === y);
+                    if (isTransformer) {
                         cell.classList.add('transformer');
                         cell.style.backgroundColor = COLORS.GREY;
                     }
@@ -378,8 +386,9 @@
 
         // Process tile effect after moving onto it
         function processTileEffect(x, y) {
-            // Check for transformer
-            if (x === gameState.transformerPos.x && y === gameState.transformerPos.y) {
+            // Check for transformer (support multiple positions)
+            const isOnTransformer = gameState.transformerPositions.some(pos => pos.x === x && pos.y === y);
+            if (isOnTransformer) {
                 // Toggle game state
                 gameState.currentGameState = gameState.currentGameState === 'A' ? 'B' : 'A';
                 return;
@@ -395,14 +404,15 @@
                     // Change color
                     gameState.avatarColor = tile.newColor;
                 } else if (tile.type === 'colorCycle') {
-                    // Cycle to next color in sequence
-                    const currentIndex = COLOR_CYCLE.indexOf(gameState.avatarColor);
+                    // Cycle to next color in sequence (use custom cycle if provided)
+                    const cycle = tile.cycle || COLOR_CYCLE;
+                    const currentIndex = cycle.indexOf(gameState.avatarColor);
                     if (currentIndex === -1) {
-                        // If current color not in cycle (e.g., grey), start at first color
-                        gameState.avatarColor = COLOR_CYCLE[0];
+                        // If current color not in cycle, start at first color
+                        gameState.avatarColor = cycle[0];
                     } else {
                         // Move to next color, wrap around to beginning
-                        gameState.avatarColor = COLOR_CYCLE[(currentIndex + 1) % COLOR_CYCLE.length];
+                        gameState.avatarColor = cycle[(currentIndex + 1) % cycle.length];
                     }
                 } else if (tile.type === 'portal') {
                     // Teleport to destination (direction remains the same)
@@ -493,8 +503,10 @@
         function generateGameStateMatrix() {
             const matrix = Array(5).fill(null).map(() => Array(5).fill('E'));
 
-            // Mark transformer
-            matrix[gameState.transformerPos.y][gameState.transformerPos.x] = 'T';
+            // Mark transformers (support multiple)
+            gameState.transformerPositions.forEach(pos => {
+                matrix[pos.y][pos.x] = 'T';
+            });
 
             // Mark goal
             matrix[gameState.goalPos.y][gameState.goalPos.x] = 'G';
@@ -766,12 +778,58 @@
             };
         }
 
+        function level5() {
+            // Grid reference:
+            // 1   2   3   4   5
+            // 6   7   8   9   10
+            // 11  12  13  14  15
+            // 16  17  18  19  20
+            // 21  22  23  24  25
+
+            const avatarStart = pixelToCoords(8);     // Pixel 8 = (2, 1)
+            const trigger1 = pixelToCoords(1);        // Pixel 1 = (0, 0)
+            const trigger2 = pixelToCoords(23);       // Pixel 23 = (2, 4)
+            const goalPos = pixelToCoords(21);        // Pixel 21 = (0, 4) bottom-left
+            const pixel3 = pixelToCoords(3);          // Pixel 3 = (2, 0)
+            const pixel13 = pixelToCoords(13);        // Pixel 13 = (2, 2) center
+            const pixel9 = pixelToCoords(9);          // Pixel 9 = (3, 1)
+            const pixel19 = pixelToCoords(19);        // Pixel 19 = (3, 3)
+            const pixel24 = pixelToCoords(24);        // Pixel 24 = (3, 4)
+
+            // Custom color cycle for this level
+            const level5ColorCycle = ['magenta', 'rose', 'yellow', 'violet', 'lime', 'teal', 'blue'];
+
+            return {
+                id: 5,
+                name: "Level 5",
+                instructions: "There are no instructions for this game, intentionally.<br>Use the arrow keys to discover the controls, rules, and objective.",
+                avatarStart: avatarStart,
+                avatarColor: 'rose',
+                avatarDirection: 'horizontal', // left/right only
+                startingGameState: 'A',
+                goalPos: goalPos,
+                goalColor: 'violet',
+                transformerPositions: [trigger1, trigger2], // Multiple triggers at boxes 1 and 23
+                tiles: {
+                    stateA: [
+                        { x: pixel13.x, y: pixel13.y, type: 'portal', destX: pixel9.x, destY: pixel9.y }, // Portal at box 13 → teleports to box 9
+                        { x: pixel19.x, y: pixel19.y, type: 'colorCycle', cycle: level5ColorCycle }, // Color cycler at box 19
+                        { x: pixel24.x, y: pixel24.y, type: 'direction' } // Direction changer at box 24
+                    ],
+                    stateB: [
+                        { x: pixel3.x, y: pixel3.y, type: 'direction' } // Direction changer at box 3
+                    ]
+                }
+            };
+        }
+
         // Build levels array
         levels = [
             level1(),
             level2(),
             level3(),
-            level4()
+            level4(),
+            level5()
         ];
 
         // Start game
