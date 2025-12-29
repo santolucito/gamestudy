@@ -415,11 +415,49 @@
                         gameState.avatarColor = cycle[(currentIndex + 1) % cycle.length];
                     }
                 } else if (tile.type === 'portal') {
-                    // Teleport to destination (direction remains the same)
-                    gameState.avatarPos.x = tile.destX;
-                    gameState.avatarPos.y = tile.destY;
+                    // Teleport to destination with visible animation
+                    animatePortalTeleport(tile.destX, tile.destY);
                 }
             }
+        }
+
+        // Animate portal teleportation
+        let isAnimatingPortal = false;
+        function animatePortalTeleport(destX, destY) {
+            isAnimatingPortal = true;
+
+            // Get current avatar cell and fade it out
+            const currentCell = document.getElementById(`cell-${gameState.avatarPos.x}-${gameState.avatarPos.y}`);
+            currentCell.style.transition = 'opacity 0.2s ease-out';
+            currentCell.style.opacity = '0.3';
+
+            // After fade out, move avatar and fade in at destination
+            setTimeout(() => {
+                // Update position
+                gameState.avatarPos.x = destX;
+                gameState.avatarPos.y = destY;
+
+                // Re-render grid
+                renderGrid();
+
+                // Get destination cell and animate fade in
+                const destCell = document.getElementById(`cell-${destX}-${destY}`);
+                destCell.style.opacity = '0.3';
+                destCell.style.transition = 'opacity 0.2s ease-in';
+
+                // Trigger fade in
+                setTimeout(() => {
+                    destCell.style.opacity = '1';
+
+                    // Clean up and re-enable input
+                    setTimeout(() => {
+                        isAnimatingPortal = false;
+                        // Reset transition on all cells
+                        currentCell.style.transition = '';
+                        destCell.style.transition = '';
+                    }, 200);
+                }, 20);
+            }, 250);
         }
 
         // Check win condition
@@ -547,6 +585,7 @@
         // Handle keyboard input
         document.addEventListener('keydown', (e) => {
             if (currentLevelIndex >= levels.length) return;
+            if (isAnimatingPortal) return; // Block input during portal animation
 
             switch(e.key) {
                 case 'ArrowUp':
