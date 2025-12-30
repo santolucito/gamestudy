@@ -25,7 +25,7 @@
 
         #instructions {
             margin-bottom: 20px;
-            font-size: 14px;
+            font-size: 16px;
             padding: 15px;
             background-color: #ffffff;
             color: #1a1a1a;
@@ -155,7 +155,7 @@
     </script>
 
     <div id="instructions">
-        There are no instructions for this game, intentionally.<br>Use the arrow keys, "B" key, and space bar to discover the controls, rules, and objective.
+        There are no instructions for this game, intentionally.<br>Use the arrow keys and space bar to discover the controls, rules, and objective.
     </div>
     <div id="game-container">
         <div id="ripple-container"></div>
@@ -170,7 +170,6 @@
         // Game state
         let levels = [];
         let currentLevelIndex = 0;
-        let isBKeyPressed = false; // Track if B key is being held
         let isTransitioning = false; // Prevent multiple level transitions
         let gameState = {
             grid: [],
@@ -393,13 +392,7 @@
 
                     // Determine color based on grid value
                     if (gridValue === 1) {
-                        // If B key is pressed, show all tracks in track color (no selection)
-                        // Otherwise, show selected chunks in selectedChunk color
-                        if (isBKeyPressed) {
-                            color = gameState.colors.track;
-                        } else {
-                            color = isSelected ? gameState.colors.selectedChunk : gameState.colors.track;
-                        }
+                        color = isSelected ? gameState.colors.selectedChunk : gameState.colors.track;
                     } else if (gridValue === 2) {
                         color = gameState.colors.fixedTrack;
                     } else if (gridValue === 3) {
@@ -740,29 +733,12 @@
                     logEvent('Space', 'cycle_chunk');
                     cycleChunk();
                     break;
-                case 'b':
-                case 'B':
-                    e.preventDefault();
-                    if (!isBKeyPressed) {
-                        isBKeyPressed = true;
-                        renderGrid(); // Re-render to remove gray selection color
-                        logEvent('B', 'visualize_board');
-                    }
-                    break;
                 case 'r':
                 case 'R':
                     e.preventDefault();
                     logEvent('R', 'restart_level');
                     loadLevel(currentLevelIndex);
                     break;
-            }
-        });
-
-        // Handle B key release to stop flash effect
-        document.addEventListener('keyup', (e) => {
-            if (e.key === 'b' || e.key === 'B') {
-                isBKeyPressed = false;
-                renderGrid(); // Re-render to restore selection
             }
         });
 
@@ -860,8 +836,7 @@
                     selectedChunkIndex: gameState.selectedChunkIndex,
                     selectedChunkPosition: selectedChunkPosition,
                     chunks: gameState.chunks.map(chunk => chunk.map(cell => [...cell])),
-                    gameStateMatrix: generateGameStateMatrix(),
-                    isBKeyPressed: isBKeyPressed
+                    gameStateMatrix: generateGameStateMatrix()
                 };
             },
             screenToGrid: function(screenX, screenY) {
@@ -888,8 +863,6 @@
                 'ArrowLeft': 'move_chunk_left',
                 'ArrowRight': 'move_chunk_right',
                 ' ': 'cycle_chunk',
-                'b': 'visualize_board',
-                'B': 'visualize_board',
                 'r': 'restart_level',
                 'R': 'restart_level'
             },
