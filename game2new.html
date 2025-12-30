@@ -822,6 +822,7 @@
             const pixel1 = pixelToCoords(1);          // Pixel 1 = (0, 0)
             const pixel3 = pixelToCoords(3);          // Pixel 3 = (2, 0)
             const pixel11 = pixelToCoords(11);        // Pixel 11 = (0, 2)
+            const pixel12 = pixelToCoords(12);        // Pixel 12 = (1, 2)
             const pixel13 = pixelToCoords(13);        // Pixel 13 = (2, 2)
             const pixel14 = pixelToCoords(14);        // Pixel 14 = (3, 2)
             const pixel15 = pixelToCoords(15);        // Pixel 15 = (4, 2)
@@ -851,6 +852,7 @@
                     ],
                     stateB: [
                         { x: pixel11.x, y: pixel11.y, type: 'direction' }, // Direction changer at box 11
+                        { x: pixel12.x, y: pixel12.y, type: 'direction' }, // Direction changer at box 12
                         { x: pixel13.x, y: pixel13.y, type: 'colorCycle', cycle: level5ColorCycle }, // Color changer at box 13
                         { x: pixel17.x, y: pixel17.y, type: 'direction' }, // Direction changer at box 17
                         { x: pixel22.x, y: pixel22.y, type: 'colorCycle', cycle: level5ColorCycle } // Color changer at box 22
