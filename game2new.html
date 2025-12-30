@@ -228,6 +228,7 @@
 
         // Data collection
         let sessionData = {
+            game: "Game B",
             sessionStart: new Date().toISOString(),
             movements: []
         };
@@ -849,6 +850,7 @@
         // Initialize audio recorder
         AudioRecorder.init({
             gamePrefix: 'puzzle-game2',
+            gameName: 'Game B',
             getGameState: function() {
                 return {
                     level: currentLevelIndex + 1,

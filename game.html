@@ -223,6 +223,15 @@
 
         // Data collection
         let sessionData = {
+            game: "Game A",
+            legend: {
+                "E": "Empty - background cell",
+                "G": "Goal - destination the avatar must reach",
+                "C": "Color - a color box that does not match the goal color",
+                "M": "Match - the color box that matches the goal color",
+                "A": "Avatar - the player's piece",
+                "R": "Reset - the teal box that resets avatar to grey"
+            },
             sessionStart: new Date().toISOString(),
             movements: []
         };
@@ -478,17 +487,25 @@
             // Initialize 6x6 matrix with empty cells
             const matrix = Array(6).fill(null).map(() => Array(6).fill('E'));
 
-            // Place corners with letter codes
+            // Place corners with new letter codes:
+            // R = Reset (teal), M = Match (matches target color), C = Color (other colors)
             for (const cornerKey in gameState.corners) {
                 const corner = gameState.corners[cornerKey];
-                const colorCode = corner.color.charAt(0).toUpperCase(); // First letter
-                matrix[corner.y][corner.x] = colorCode;
+                let code;
+                if (corner.color === 'teal') {
+                    code = 'R'; // Reset color box
+                } else if (corner.color === gameState.targetColor) {
+                    code = 'M'; // Match - this color matches the goal
+                } else {
+                    code = 'C'; // Color - doesn't match goal
+                }
+                matrix[corner.y][corner.x] = code;
             }
 
-            // Place center with 'C'
-            matrix[gameState.centerPos.y][gameState.centerPos.x] = 'C';
+            // Place goal (center) with 'G'
+            matrix[gameState.centerPos.y][gameState.centerPos.x] = 'G';
 
-            // Place avatar with 'A'
+            // Place avatar with 'A' (on top of everything)
             matrix[gameState.avatarPos.y][gameState.avatarPos.x] = 'A';
 
             return matrix;
@@ -739,6 +756,7 @@
         // Initialize audio recorder
         AudioRecorder.init({
             gamePrefix: 'puzzle-game1',
+            gameName: 'Game A',
             getGameState: function() {
                 return {
                     level: currentLevelIndex + 1,

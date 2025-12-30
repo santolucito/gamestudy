@@ -327,9 +327,9 @@ const AudioRecorder = (function() {
 
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
 
-        // Create export object matching the track-puzzle-session format
-        // while also including all original data (game_id, reasoning, guid, etc.)
+        // Create export object for game states, speech, and movement data (no gaze)
         const exportData = {
+            game: config.gameName || config.gamePrefix,
             sessionStart: new Date(state.startTime).toISOString(),
             sessionEnd: new Date().toISOString(),
             gameId: state.gameId,
@@ -352,7 +352,17 @@ const AudioRecorder = (function() {
                 timestamp: new Date(state.startTime + t.timestamp).toISOString(),
                 text: t.text,
                 confidence: t.confidence
-            })),
+            }))
+        };
+
+        // Create separate export object for eye-tracking data
+        const eyeTrackingData = {
+            game: config.gameName || config.gamePrefix,
+            dataType: "eye-tracking",
+            sessionStart: new Date(state.startTime).toISOString(),
+            sessionEnd: new Date().toISOString(),
+            gameId: state.gameId,
+            duration: Date.now() - state.startTime,
             gaze: state.gazeData.map(g => ({
                 x: g[0],
                 y: g[1],
@@ -364,6 +374,7 @@ const AudioRecorder = (function() {
         function formatExportData(data) {
             const lines = [];
             lines.push('{');
+            lines.push(`  "game": ${JSON.stringify(data.game)},`);
             lines.push(`  "sessionStart": ${JSON.stringify(data.sessionStart)},`);
             lines.push(`  "sessionEnd": ${JSON.stringify(data.sessionEnd)},`);
             lines.push(`  "gameId": ${JSON.stringify(data.gameId)},`);
@@ -412,7 +423,22 @@ const AudioRecorder = (function() {
                 lines.push(`      "confidence": ${t.confidence}`);
                 lines.push(`    }${comma}`);
             });
-            lines.push('  ],');
+            lines.push('  ]');
+
+            lines.push('}');
+            return lines.join('\n');
+        }
+
+        // Format eye-tracking data
+        function formatEyeTrackingData(data) {
+            const lines = [];
+            lines.push('{');
+            lines.push(`  "game": ${JSON.stringify(data.game)},`);
+            lines.push(`  "dataType": ${JSON.stringify(data.dataType)},`);
+            lines.push(`  "sessionStart": ${JSON.stringify(data.sessionStart)},`);
+            lines.push(`  "sessionEnd": ${JSON.stringify(data.sessionEnd)},`);
+            lines.push(`  "gameId": ${JSON.stringify(data.gameId)},`);
+            lines.push(`  "duration": ${data.duration},`);
 
             // Gaze array
             lines.push('  "gaze": [');
@@ -441,6 +467,20 @@ const AudioRecorder = (function() {
         document.body.removeChild(jsonLink);
         URL.revokeObjectURL(jsonUrl);
 
+        // Download eye-tracking data as separate file
+        if (state.gazeData.length > 0) {
+            const eyeTrackingString = formatEyeTrackingData(eyeTrackingData);
+            const eyeTrackingBlob = new Blob([eyeTrackingString], { type: 'application/json' });
+            const eyeTrackingUrl = URL.createObjectURL(eyeTrackingBlob);
+            const eyeTrackingLink = document.createElement('a');
+            eyeTrackingLink.href = eyeTrackingUrl;
+            eyeTrackingLink.download = `${config.gamePrefix}-eye-tracking-${timestamp}.json`;
+            document.body.appendChild(eyeTrackingLink);
+            eyeTrackingLink.click();
+            document.body.removeChild(eyeTrackingLink);
+            URL.revokeObjectURL(eyeTrackingUrl);
+        }
+
         // Download audio if available
         if (state.audioChunks.length > 0) {
             const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
@@ -454,10 +494,10 @@ const AudioRecorder = (function() {
             URL.revokeObjectURL(audioUrl);
         }
 
-        const audioMsg = state.audioChunks.length > 0 ? '\n- WebM: audio recording' : '';
-        const gazeMsg = state.gazeData.length > 0 ? `\n- ${state.gazeData.length} gaze points` : '';
+        const audioMsg = state.audioChunks.length > 0 ? '\n- Audio recording' : '';
+        const gazeMsg = state.gazeData.length > 0 ? `\n- Eye-tracking data (${state.gazeData.length} gaze points)` : '';
         const transcriptMsg = state.transcription.length > 0 ? `\n- ${state.transcription.length} transcriptions` : '';
-        alert(`Exported ${state.keystrokes.length} events!${transcriptMsg}${gazeMsg}\n\nFiles:\n- JSON: session data${audioMsg}`);
+        alert(`Exported ${state.keystrokes.length} events!${transcriptMsg}${gazeMsg}\n\nFiles:\n- JSON: session data${gazeMsg}${audioMsg}`);
     }
 
     // Create and inject the recording UI

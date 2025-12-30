@@ -182,6 +182,7 @@
 
         // Session logging
         let sessionData = {
+            game: "Game C",
             legend: {
                 "V": "Vehicle - the player's piece that must reach the goal",
                 "E": "Empty - background cell with no piece",
@@ -812,6 +813,7 @@
         // Initialize audio recorder
         AudioRecorder.init({
             gamePrefix: 'puzzle-game3',
+            gameName: 'Game C',
             getGameState: function() {
                 // Calculate top-left position of selected chunk
                 let selectedChunkPosition = null;
