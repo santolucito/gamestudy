@@ -39,18 +39,22 @@
             position: absolute;
             border-radius: 50%;
             border: 7px solid #32CD32;
-            opacity: 2;
+            width: 50px;
+            height: 50px;
+            margin-left: -25px;
+            margin-top: -25px;
+            opacity: 0;
+            transform: scale(0);
+            pointer-events: none;
         }
 
         @keyframes ripple {
             0% {
-                width: 0;
-                height: 0;
+                transform: scale(0);
                 opacity: 0.8;
             }
             100% {
-                width: 400px;
-                height: 400px;
+                transform: scale(8);
                 opacity: 0;
             }
         }
@@ -283,6 +287,9 @@
                 return;
             }
 
+            // Clear any remaining ripples from previous level
+            document.getElementById('ripple-container').innerHTML = '';
+
             const level = levels[levelIndex];
 
             // Reset game state
@@ -508,12 +515,12 @@
                 setTimeout(() => {
                     const ripple = document.createElement('div');
                     ripple.className = 'ripple';
-                    ripple.style.animation = 'ripple 1s ease-out';
+                    ripple.style.animation = 'ripple 1s ease-out forwards';
                     container.appendChild(ripple);
 
                     setTimeout(() => {
                         ripple.remove();
-                    }, 1000);
+                    }, 1100);
                 }, i * 200);
             }
         }
@@ -811,7 +818,7 @@
             const avatarStart = pixelToCoords(23);    // Pixel 23 = (2, 4)
             const trigger1 = pixelToCoords(24);       // Pixel 24 = (3, 4) game state trigger
             const trigger2 = pixelToCoords(6);        // Pixel 6 = (0, 1) game state trigger
-            const goalPos = pixelToCoords(23);        // Pixel 23 = (2, 4) same as avatar start
+            const goalPos = pixelToCoords(18);        // Pixel 18 = (2, 3)
             const pixel1 = pixelToCoords(1);          // Pixel 1 = (0, 0)
             const pixel3 = pixelToCoords(3);          // Pixel 3 = (2, 0)
             const pixel11 = pixelToCoords(11);        // Pixel 11 = (0, 2)
