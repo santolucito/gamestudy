@@ -509,7 +509,7 @@ const AudioRecorder = (function() {
                 border-radius: 5px;
                 cursor: pointer;
                 font-family: inherit;
-                font-size: 14px;
+                font-size: 16px;
                 min-width: 140px;
             }
             .audio-recorder-btn:hover {
