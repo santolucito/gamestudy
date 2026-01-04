@@ -48,7 +48,7 @@
             padding: 2px;
             border: 3px solid #e0e0e0;
             opacity: 1;
-            transition: opacity 0.5s ease-in-out;
+            transition: opacity 0.8s ease-in-out;
         }
 
         #grid.fade-out {
@@ -89,13 +89,13 @@
                 opacity: 0;
             }
             10% {
-                width: 40px;
-                height: 40px;
+                width: 50px;
+                height: 50px;
                 opacity: 0.8;
             }
             100% {
-                width: 400px;
-                height: 400px;
+                width: 550px;
+                height: 550px;
                 opacity: 0;
             }
         }
@@ -173,6 +173,13 @@
     <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
     <script src="audio-recorder.js"></script>
     <script>
+        // Get or generate shared 4-digit session code (persists across all games in same session)
+        let sessionCode = sessionStorage.getItem('gameSessionCode');
+        if (!sessionCode) {
+            sessionCode = String(Math.floor(1000 + Math.random() * 9000));
+            sessionStorage.setItem('gameSessionCode', sessionCode);
+        }
+
         // Game state
         let levels = [];
         let currentLevelIndex = 0;
@@ -274,6 +281,7 @@
                 ],
                 vehicleStart: [0,3],
                 goal: [6,0],
+                requiredPosition: { row: 5, col: 2 },  // Box 38: must have movable piece here to win
                 colors: {
                     background: "#FFFFFF",
                     track: "#44AA99",
@@ -534,7 +542,7 @@
                                 gridElement.classList.remove('fade-out');
                                 document.getElementById('restart-button').style.display = 'block';
                             }
-                        }, 800);
+                        }, 1000);
                     }, 1500);
                 }, 1000);
             }
@@ -550,6 +558,15 @@
         // Requires: a piece must be placed on the goal position (goal cell must be track, not empty)
         function canReachGoal() {
             const goal = gameState.goalPos;
+            const level = levels[currentLevelIndex];
+
+            // Check if level has a required position that must contain a movable piece
+            if (level.requiredPosition) {
+                const { row, col } = level.requiredPosition;
+                if (gameState.grid[row][col] !== 1) {
+                    return false; // Required position doesn't have a movable piece
+                }
+            }
 
             // First check: the goal position must have a piece on it (value 1 = track)
             // If it's still 4 (goal marker), no piece has been placed there yet
@@ -812,7 +829,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `track-puzzle-session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            a.download = `gameC-${sessionCode}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

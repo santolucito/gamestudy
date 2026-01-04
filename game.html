@@ -197,6 +197,13 @@
     <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
     <script src="audio-recorder.js"></script>
     <script>
+        // Get or generate shared 4-digit session code (persists across all games in same session)
+        let sessionCode = sessionStorage.getItem('gameSessionCode');
+        if (!sessionCode) {
+            sessionCode = String(Math.floor(1000 + Math.random() * 9000));
+            sessionStorage.setItem('gameSessionCode', sessionCode);
+        }
+
         // Color definitions
         const COLORS = {
             EMPTY: '#FFFFFF',
@@ -620,7 +627,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `game-session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            a.download = `gameA-${sessionCode}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
