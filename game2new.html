@@ -652,7 +652,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `gameB-${sessionCode}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            a.download = `puzzle-game2-state-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
