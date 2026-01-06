@@ -22,25 +22,24 @@ which is a prerequisite for this script to work.
 !!!!!READ THIS NOT TO LOSE DATA!!!!!
 
 PLEASE NOTE: to make sure your data is processed correctly, you have to run this
-script in a folder that has only ONE participant's data. 
+script for a folder that has only ONE participant's data. 
 
-The script works by tagging all data files with a given participant's name, 
-so it's REALLY important you either have deleted other participants' data from the current folder 
-or created a separate data folder for every participant's individual data, where
-you copy/move this script to every one of them when you need to upload the data
-to Google Drive.
+The script works by tagging all data files with a given participant's unique id
+code, so it's REALLY important you either have deleted other participants' data from the current folder 
+or created a separate data folder for every participant's individual data to Google Drive.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-1.1) For every one of your games, you will run the following commands in your
-terminal (changing "name" to the name of your participant):
+1.1) For every individual participant, you will run the following commands in your
+terminal (changing "folder" to the filepath of the folder that has this particular
+participant's data):
 
-./upload_drive.sh A name
-./upload_drive.sh B name
-./upload_drive.sh C name
+./upload_drive.sh folder
 
-1.2) The script will sort the files into their correct folders automatically. You're
-done!
+1.2) The script will sort the files into their correct folders automatically and
+rename the files with a unique 10-digit participant id instead of a timestamp. 
+
+You're done!
 
 CONNECTING GOOGLE DRIVE
 
@@ -94,7 +93,7 @@ You will be prompted to enter advanced config, press "y" to do so.
 
 1ERxyzAow04w8oQN0ClQZ_yOKMxRV8UeP
 
-then press "Enter"
+then press "Enter" (this is our DATA folder's unique address)
 
 2.1.7.2 Keep pressing "Enter" until you are asked to "Enter advanced config?"
 again, which is when you press "n" and "Enter" to exit.
