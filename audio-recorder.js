@@ -281,7 +281,10 @@ const AudioRecorder = (function() {
     // Toggle recording
     function toggleRecording() {
         if (state.isRecording) {
-            stopRecording();
+            // Show confirmation prompt before stopping
+            if (confirm('Would you like to stop recording?')) {
+                stopRecording();
+            }
         } else {
             startRecording();
         }
