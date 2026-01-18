@@ -6,6 +6,9 @@ import os
 
 Tk().withdraw()
 
+output_dir = "/Users/rachel/Documents/TAP_Transcriptions"
+os.makedirs(output_dir, exist_ok=True)
+
 print("Select audio files to transcribe...")
 audio_files = askopenfilenames(
     title="Select audio files",
@@ -36,7 +39,8 @@ for audio_path in audio_files:
         
         transcription = r.recognize_google(audio)
         
-        output_file = audio_path.rsplit('.', 1)[0] + '_transcription.txt'
+        filename = os.path.basename(audio_path).rsplit('.', 1)[0]
+        output_file = os.path.join(output_dir, filename + '_transcription.txt')
         with open(output_file, 'w') as f:
             f.write(transcription)
         
