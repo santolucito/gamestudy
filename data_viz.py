@@ -4,6 +4,22 @@ import json
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from datetime import datetime
+
+# Output directory for saved files (Downloads - not in git repo)
+output_dir = "/Users/rachelpapirmeister/Downloads"
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+stats_file = f"{output_dir}/game_stats_{timestamp}.txt"
+
+# Helper function to print and save to file
+def log(text=""):
+    print(text)
+    stats_output.write(str(text) + "\n")
+
+# Open stats file for writing
+stats_output = open(stats_file, 'w')
+log(f"Game Study Data Analysis - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+log("=" * 60)
 
 def read_json_from_zip(zip_path):
     results = {}
@@ -86,25 +102,25 @@ for filename, data in game_states.items():
 
 df_summary = pd.DataFrame(game_summary)
 
-print("\n" + "="*50)
-print("STATS ACROSS ALL GAMES")
-print("="*50)
+log("\n" + "="*50)
+log("STATS ACROSS ALL GAMES")
+log("="*50)
 
-print(" ")
-print("\nAverage movements per game:")
-print(df_summary['num_movements'].mean())
+log(" ")
+log("\nAverage movements per game:")
+log(df_summary['num_movements'].mean())
 
-print(" ")
-print("\nAverage movements by game type:")
-print(df_summary.groupby('game_type')['num_movements'].mean())
+log(" ")
+log("\nAverage movements by game type:")
+log(df_summary.groupby('game_type')['num_movements'].mean())
 
-print(" ")
-print("\nMovement statistics:")
-print(df_summary['num_movements'].describe())
+log(" ")
+log("\nMovement statistics (count, mean, std, min, 25%, 50%, 75%, max):")
+log(df_summary['num_movements'].describe())
 
-print(" ")
-print("\nStats by game type:")
-print(df_summary.groupby('game_type')['num_movements'].describe())
+log(" ")
+log("\nStats by game type:")
+log(df_summary.groupby('game_type')['num_movements'].describe())
 
 
 gaze_summary = []
@@ -129,26 +145,25 @@ for filename, data in eye_tracking.items():
 
 df_gaze_summary = pd.DataFrame(gaze_summary)
 
-print("\n" + "="*50)
-print("GAZE STATS ACROSS ALL GAMES")
-print("="*50)
+log("\n" + "="*50)
+log("GAZE STATS ACROSS ALL GAMES")
+log("="*50)
 
-print(" ")
-print("\nAverage gaze points per session:")
-print(df_gaze_summary['num_gaze'].mean())
+log(" ")
+log("\nAverage gaze points per session:")
+log(df_gaze_summary['num_gaze'].mean())
 
-print(" ")
-print("\nAverage gaze points by game type:")
-print(df_gaze_summary.groupby('game_type')['num_gaze'].mean())
+log(" ")
+log("\nAverage gaze points by game type:")
+log(df_gaze_summary.groupby('game_type')['num_gaze'].mean())
 
-print(" ")
-print("\nGaze point statistics:")
-print(df_gaze_summary['num_gaze'].describe())
+log(" ")
+log("\nGaze point statistics (count, mean, std, min, 25%, 50%, 75%, max):")
+log(df_gaze_summary['num_gaze'].describe())
 
-print(" ")
-print(" ")
-print("\nGaze stats by game type:")
-print(df_gaze_summary.groupby('game_type')['num_gaze'].describe())
+log(" ")
+log("\nGaze stats by game type:")
+log(df_gaze_summary.groupby('game_type')['num_gaze'].describe())
 
 
 # histrogram:
@@ -167,14 +182,15 @@ ax2.set_xlabel('Game Type')
 ax2.set_ylabel('Average Gaze Points')
 
 plt.tight_layout()
+plt.savefig(f"{output_dir}/chart1_avg_movements_gaze_{timestamp}.png", dpi=150)
 plt.show()
 
 
 # K-means clustering:
 
-print("\n" + "="*50)
-print("K-MEANS CLUSTERING ON MOVEMENTS")
-print("="*50)
+log("\n" + "="*50)
+log("K-MEANS CLUSTERING ON MOVEMENTS")
+log("="*50)
 
 all_movements = []
 
@@ -201,7 +217,7 @@ for filename, data in game_states.items():
 
 # Create DataFrame
 df_all_movements = pd.DataFrame(all_movements)
-print(f"\nTotal movements collected: {len(df_all_movements)}")
+log(f"\nTotal movements collected: {len(df_all_movements)}")
 
 # Prepare features for clustering (x, y, level)
 features = df_all_movements[['x', 'y', 'level']]
@@ -215,19 +231,19 @@ kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
 df_all_movements['cluster'] = kmeans.fit_predict(features_scaled)
 
 # Show cluster distribution
-print("\nCluster distribution:")
-print(df_all_movements['cluster'].value_counts().sort_index())
+log("\nCluster distribution:")
+log(df_all_movements['cluster'].value_counts().sort_index())
 
 # Show cluster centers (unscaled)
 centers_scaled = kmeans.cluster_centers_
 centers = scaler.inverse_transform(centers_scaled)
-print("\nCluster centers (x, y, level):")
+log("\nCluster centers (x, y, level):")
 for i, center in enumerate(centers):
-    print(f"  Cluster {i}: x={center[0]:.1f}, y={center[1]:.1f}, level={center[2]:.1f}")
+    log(f"  Cluster {i}: x={center[0]:.1f}, y={center[1]:.1f}, level={center[2]:.1f}")
 
 # Show cluster breakdown by game type
-print("\nClusters by game type:")
-print(pd.crosstab(df_all_movements['game_type'], df_all_movements['cluster']))
+log("\nClusters by game type:")
+log(pd.crosstab(df_all_movements['game_type'], df_all_movements['cluster']))
 
 # Visualize as HEATMAPS (better for grid data)
 import numpy as np
@@ -274,6 +290,7 @@ axes[2].set_ylabel('Y Position')
 plt.colorbar(im3, ax=axes[2], label='Count')
 
 plt.tight_layout()
+plt.savefig(f"{output_dir}/chart2_movement_density_heatmaps_{timestamp}.png", dpi=150)
 plt.show()
 
 # Bar chart showing clusters by GAME TYPE (clearer!)
@@ -296,11 +313,12 @@ for i, label in cluster_labels.items():
     ax.annotate(label, xy=(i, 0), xytext=(i, -1500), fontsize=8, ha='center', color='gray')
 
 plt.tight_layout()
+plt.savefig(f"{output_dir}/chart3_cluster_by_game_type_{timestamp}.png", dpi=150)
 plt.show()
 
-print("\n" + "="*50)
-print("MOVEMENT DENSITY: LEVEL 1 vs LEVEL 5")
-print("="*50)
+log("\n" + "="*50)
+log("MOVEMENT DENSITY: LEVEL 1 vs LEVEL 5")
+log("="*50)
 
 fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
@@ -358,5 +376,16 @@ plt.colorbar(im4, ax=axes[1, 1], label='Count')
 
 plt.suptitle('Movement Density: Level 1 vs Level 5', fontsize=14, fontweight='bold')
 plt.tight_layout()
+plt.savefig(f"{output_dir}/chart4_level1_vs_level5_{timestamp}.png", dpi=150)
 plt.show()
 
+# Close stats file and print summary
+stats_output.close()
+print(f"\n{'='*50}")
+print("FILES SAVED TO DOWNLOADS:")
+print(f"{'='*50}")
+print(f"  Stats: game_stats_{timestamp}.txt")
+print(f"  Chart 1: chart1_avg_movements_gaze_{timestamp}.png")
+print(f"  Chart 2: chart2_movement_density_heatmaps_{timestamp}.png")
+print(f"  Chart 3: chart3_cluster_by_game_type_{timestamp}.png")
+print(f"  Chart 4: chart4_level1_vs_level5_{timestamp}.png")
