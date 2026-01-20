@@ -511,6 +511,158 @@ sink()
 cat("Summary statistics saved\n")
 
 # ============================================================================
+# 6. ORDER EFFECTS ANALYSIS (Two-Way Mixed ANOVA)
+# ============================================================================
+
+cat("\n", rep("=", 60), "\n")
+cat("6. ORDER EFFECTS ANALYSIS\n")
+cat(rep("=", 60), "\n\n")
+
+# Check if order effects data file exists
+order_data_file <- file.path(output_dir, "order_effects_data.csv")
+
+if (file.exists(order_data_file)) {
+  cat("Loading order effects data...\n")
+  order_df <- read.csv(order_data_file)
+
+  # Convert to factors
+  order_df$participant_id <- factor(order_df$participant_id)
+  order_df$game_type <- factor(order_df$game_type)
+  order_df$order_position <- factor(order_df$order_position)
+
+  cat(sprintf("  Participants: %d\n", length(unique(order_df$participant_id))))
+  cat(sprintf("  Total observations: %d\n", nrow(order_df)))
+
+  # Descriptive statistics
+  cat("\nDescriptive Statistics:\n")
+  cat("\nBy Game Type:\n")
+  print(aggregate(num_moves ~ game_type, data = order_df,
+                  FUN = function(x) c(mean = mean(x), sd = sd(x), n = length(x))))
+
+  cat("\nBy Order Position:\n")
+  print(aggregate(num_moves ~ order_position, data = order_df,
+                  FUN = function(x) c(mean = mean(x), sd = sd(x), n = length(x))))
+
+  cat("\nBy Game Type x Order Position:\n")
+  print(aggregate(num_moves ~ game_type + order_position, data = order_df,
+                  FUN = function(x) c(mean = mean(x), sd = sd(x), n = length(x))))
+
+  # Two-Way Mixed ANOVA
+  # Game Type = within-subjects, Order Position = between-subjects
+  cat("\n\nTwo-Way Mixed ANOVA Results:\n")
+  cat(rep("-", 50), "\n")
+
+  # Using ezANOVA if available, otherwise use standard aov
+  if (requireNamespace("ez", quietly = TRUE)) {
+    library(ez)
+    anova_result <- ezANOVA(
+      data = order_df,
+      dv = num_moves,
+      wid = participant_id,
+      within = game_type,
+      between = order_position,
+      type = 3
+    )
+    print(anova_result)
+  } else {
+    # Standard ANOVA approach
+    anova_model <- aov(num_moves ~ game_type * order_position +
+                       Error(participant_id/game_type), data = order_df)
+    print(summary(anova_model))
+  }
+
+  # Save order effects results
+  sink("order_effects_results.txt")
+  cat("ORDER EFFECTS ANALYSIS RESULTS\n")
+  cat(rep("=", 60), "\n\n")
+
+  cat("Research Question: Does the order in which games were played\n")
+  cat("affect performance (num_moves), controlling for game type?\n\n")
+
+  cat("Descriptive Statistics:\n")
+  cat(rep("-", 50), "\n")
+
+  cat("\nBy Game Type:\n")
+  game_stats <- aggregate(num_moves ~ game_type, data = order_df,
+                          FUN = function(x) c(mean = round(mean(x), 2),
+                                             sd = round(sd(x), 2),
+                                             n = length(x)))
+  print(game_stats)
+
+  cat("\nBy Order Position:\n")
+  order_stats <- aggregate(num_moves ~ order_position, data = order_df,
+                           FUN = function(x) c(mean = round(mean(x), 2),
+                                              sd = round(sd(x), 2),
+                                              n = length(x)))
+  print(order_stats)
+
+  cat("\nBy Game Type x Order Position:\n")
+  cross_stats <- aggregate(num_moves ~ game_type + order_position, data = order_df,
+                           FUN = function(x) c(mean = round(mean(x), 2),
+                                              sd = round(sd(x), 2),
+                                              n = length(x)))
+  print(cross_stats)
+
+  cat("\n\nTwo-Way Mixed ANOVA:\n")
+  cat(rep("-", 50), "\n")
+  cat("DV: num_moves\n")
+  cat("Within-subjects factor: game_type (Game A vs Game B)\n")
+  cat("Between-subjects factor: order_position (1st, 2nd, 3rd)\n\n")
+
+  anova_model <- aov(num_moves ~ game_type * order_position +
+                     Error(participant_id/game_type), data = order_df)
+  print(summary(anova_model))
+
+  # Interpretation
+  cat("\n\nInterpretation Guide:\n")
+  cat(rep("-", 50), "\n")
+  cat("1. Main effect of ORDER POSITION:\n")
+  cat("   - If p < .05: Order significantly affected performance\n")
+  cat("   - If p >= .05: Order did NOT significantly affect performance\n")
+  cat("     (counterbalancing was effective)\n\n")
+
+  cat("2. Main effect of GAME TYPE:\n")
+  cat("   - If p < .05: Performance differed between Game A and B\n")
+  cat("   - This is expected and not related to order effects\n\n")
+
+  cat("3. INTERACTION (Game Type x Order Position):\n")
+  cat("   - If p < .05: The effect of order depends on which game\n")
+  cat("   - If p >= .05: Order affected both games similarly (or not at all)\n")
+
+  sink()
+
+  cat("Order effects results saved to order_effects_results.txt\n")
+
+  # Visualization
+  png("order_effects_plot.png", width = 10, height = 6, units = "in", res = 300)
+  par(mfrow = c(1, 2))
+
+  # Plot 1: Boxplot by Order Position
+  boxplot(num_moves ~ order_position, data = order_df,
+          main = "Num Moves by Order Position",
+          xlab = "Order Position (1st, 2nd, 3rd)",
+          ylab = "Number of Moves",
+          col = c("lightblue", "lightgreen", "lightyellow"))
+
+  # Plot 2: Interaction plot
+  interaction.plot(order_df$order_position, order_df$game_type, order_df$num_moves,
+                   main = "Game Type x Order Interaction",
+                   xlab = "Order Position",
+                   ylab = "Mean Number of Moves",
+                   col = c("red", "blue"),
+                   lwd = 2,
+                   legend = TRUE)
+
+  dev.off()
+
+  cat("Order effects plot saved\n")
+
+} else {
+  cat("Order effects data file not found.\n")
+  cat("Run prepare_order_effects_data.py first to generate order_effects_data.csv\n")
+}
+
+# ============================================================================
 # COMPLETION MESSAGE
 # ============================================================================
 
@@ -523,12 +675,14 @@ cat("  - lda_results.txt\n")
 cat("  - model_comparison.txt\n")
 cat("  - logistic_regression.txt\n")
 cat("  - anova_results.txt\n")
-cat("  - summary_statistics.txt\n\n")
+cat("  - summary_statistics.txt\n")
+cat("  - order_effects_results.txt\n\n")
 cat("Visualization files:\n")
 cat("  - lda_biplot.png\n")
 cat("  - confusion_matrix_heatmap.png\n")
 cat("  - feature_importance.png\n")
 cat("  - boxplots_by_category.png\n")
 cat("  - violin_plots.png\n")
-cat("  - feature_profile_heatmap.png\n\n")
+cat("  - feature_profile_heatmap.png\n")
+cat("  - order_effects_plot.png\n\n")
 cat("Analysis pipeline complete!\n")
