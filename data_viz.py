@@ -1,391 +1,310 @@
 import matplotlib.pyplot as plt
-import zipfile
-import json
+import seaborn as sns
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+import numpy as np
 from datetime import datetime
+from sklearn.preprocessing import MinMaxScaler
+from scipy import stats
+from scipy.stats import f_oneway, kruskal
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 # Output directory for saved files (Downloads - not in git repo)
 output_dir = "/Users/rachelpapirmeister/Downloads"
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-stats_file = f"{output_dir}/game_stats_{timestamp}.txt"
 
-# Helper function to print and save to file
-def log(text=""):
-    print(text)
-    stats_output.write(str(text) + "\n")
+# Load your final dataset (after you've linked speech to movements)
+# This assumes you've already run the NLP classifier and created NLP_features_for_LTA.csv
+# NOTE: Data files are stored in Downloads to keep them off GitHub
+csv_path = "/Users/rachelpapirmeister/Downloads/NLP_features_for_LTA.csv"
+df = pd.read_csv(csv_path)
 
-# Open stats file for writing
-stats_output = open(stats_file, 'w')
-log(f"Game Study Data Analysis - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-log("=" * 60)
+print(f"Loaded {len(df)} speech-movement episodes")
+print(f"Speech categories: {df['speech_category'].value_counts()}")
 
-def read_json_from_zip(zip_path):
-    results = {}
-    
-    with zipfile.ZipFile(zip_path, 'r') as zip_file:
-        for file_name in zip_file.namelist():
-            if file_name.endswith('.json'):
-                with zip_file.open(file_name) as json_file:
-                    content = json_file.read()
-                    results[file_name] = json.loads(content)
-    return results
+# Calculate prop_direction_changes if it doesn't exist
+if 'prop_direction_changes' not in df.columns:
+    if 'direction_changes' in df.columns and 'num_moves' in df.columns:
+        df['prop_direction_changes'] = df['direction_changes'] / df['num_moves'].replace(0, np.nan)
+        print("Note: Calculated 'prop_direction_changes' from direction_changes / num_moves")
 
-data_file = read_json_from_zip('/Users/rachelpapirmeister/Downloads/DATA-20260107T001152Z-1-001.zip')
+# Set seaborn style for prettier plots
+sns.set_style("whitegrid")
+sns.set_palette("husl")
 
-print("Files in the zip:")
-for filename in data_file.keys():
-    print(filename)
+#############################################
+# VISUALIZATION 1: BOXPLOTS - CORE FINDING
+#############################################
 
-game_states = {}
-eye_tracking = {}
+print("\n" + "="*50)
+print("Creating Visualization 1: Movement Features by Category")
+print("="*50)
 
-for filename, data in data_file.items():
-    if 'eye' in filename.lower():
-        eye_tracking[filename] = data
-    elif 'state' in filename.lower() or 'session' in filename.lower():
-        game_states[filename] = data
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
-print("Gamestates files:", len(game_states))
-print("Eye-tracking files:", len(eye_tracking))
+# Movement entropy by category
+sns.boxplot(data=df, x='speech_category', y='movement_entropy', ax=axes[0,0])
+axes[0,0].set_title('Movement Entropy by Speech Category', fontsize=12, fontweight='bold')
+axes[0,0].set_ylabel('Entropy (bits)')
+axes[0,0].set_xlabel('')
 
+# Direction changes
+sns.boxplot(data=df, x='speech_category', y='direction_changes', ax=axes[0,1])
+axes[0,1].set_title('Direction Changes by Speech Category', fontsize=12, fontweight='bold')
+axes[0,1].set_ylabel('Number of Changes')
+axes[0,1].set_xlabel('')
 
-if game_states:
-    first_gamestate_file = list(game_states.keys())[0]
-    first_data = game_states[first_gamestate_file]
-    print(f"\nFirst gamestate file: {first_gamestate_file}")
-    print("Keys in the JSON:", list(first_data.keys()))
+# Repeated sequences
+sns.boxplot(data=df, x='speech_category', y='repeated_sequences', ax=axes[0,2])
+axes[0,2].set_title('Repeated Sequences by Speech Category', fontsize=12, fontweight='bold')
+axes[0,2].set_ylabel('Count')
+axes[0,2].set_xlabel('')
 
-    # Convert the 'movements' list to a DataFrame (if it exists)
-    if 'movements' in first_data and isinstance(first_data['movements'], list):
-        df_movements = pd.DataFrame(first_data['movements'])
-        print("\nMovements data:")
-        print(df_movements.describe())
+# Unique positions visited
+sns.boxplot(data=df, x='speech_category', y='unique_positions', ax=axes[1,0])
+axes[1,0].set_title('Unique Positions Visited', fontsize=12, fontweight='bold')
+axes[1,0].set_ylabel('Count')
+axes[1,0].set_xlabel('Speech Category')
 
-if eye_tracking:
-    first_eye_file = list(eye_tracking.keys())[0]
-    first_eye_data = eye_tracking[first_eye_file]
-    print(f"\nFirst eye-tracking file: {first_eye_file}")
-    print("Keys in the JSON:", list(first_eye_data.keys()))
+# Number of moves
+sns.boxplot(data=df, x='speech_category', y='num_moves', ax=axes[1,1])
+axes[1,1].set_title('Number of Moves', fontsize=12, fontweight='bold')
+axes[1,1].set_ylabel('Count')
+axes[1,1].set_xlabel('Speech Category')
 
-    if 'gaze' in first_eye_data and isinstance(first_eye_data['gaze'], list):
-        df_gaze = pd.DataFrame(first_eye_data['gaze'])
-        print("\nGaze data:")
-        print(df_gaze.describe())
+# Backtracking
+sns.boxplot(data=df, x='speech_category', y='num_revisits', ax=axes[1,2])
+axes[1,2].set_title('Position Revisits (Backtracking)', fontsize=12, fontweight='bold')
+axes[1,2].set_ylabel('Count')
+axes[1,2].set_xlabel('Speech Category')
 
-game_summary = []
-
-for filename, data in game_states.items():
-    if 'Game A' in filename or 'game1' in filename:
-        game_type = 'Game A'
-    elif 'Game B' in filename or 'game2' in filename:
-        game_type = 'Game B'
-    elif 'Game C' in filename or 'game3' in filename:
-        game_type = 'Game C'
-    else:
-        game_type = 'Unknown'
-
-
-    if 'movements' in data:
-        num_movements = len(data['movements'])
-    elif 'events' in data:
-        num_movements = len(data['events'])
-    else:
-        num_movements = 0
-
-    game_summary.append({
-        'filename': filename,
-        'game_type': game_type,
-        'num_movements': num_movements
-    })
-
-df_summary = pd.DataFrame(game_summary)
-
-log("\n" + "="*50)
-log("STATS ACROSS ALL GAMES")
-log("="*50)
-
-log(" ")
-log("\nAverage movements per game:")
-log(df_summary['num_movements'].mean())
-
-log(" ")
-log("\nAverage movements by game type:")
-log(df_summary.groupby('game_type')['num_movements'].mean())
-
-log(" ")
-log("\nMovement statistics (count, mean, std, min, 25%, 50%, 75%, max):")
-log(df_summary['num_movements'].describe())
-
-log(" ")
-log("\nStats by game type:")
-log(df_summary.groupby('game_type')['num_movements'].describe())
-
-
-gaze_summary = []
-
-for filename, data in eye_tracking.items():
-    if 'Game A' in filename or 'game1' in filename:
-        game_type = 'Game A'
-    elif 'Game B' in filename or 'game2' in filename:
-        game_type = 'Game B'
-    elif 'Game C' in filename or 'game3' in filename:
-        game_type = 'Game C'
-    else:
-        game_type = 'Unknown'
-
-    num_gaze = len(data.get('gaze', []))
-
-    gaze_summary.append({
-        'filename': filename,
-        'game_type': game_type,
-        'num_gaze': num_gaze
-    })
-
-df_gaze_summary = pd.DataFrame(gaze_summary)
-
-log("\n" + "="*50)
-log("GAZE STATS ACROSS ALL GAMES")
-log("="*50)
-
-log(" ")
-log("\nAverage gaze points per session:")
-log(df_gaze_summary['num_gaze'].mean())
-
-log(" ")
-log("\nAverage gaze points by game type:")
-log(df_gaze_summary.groupby('game_type')['num_gaze'].mean())
-
-log(" ")
-log("\nGaze point statistics (count, mean, std, min, 25%, 50%, 75%, max):")
-log(df_gaze_summary['num_gaze'].describe())
-
-log(" ")
-log("\nGaze stats by game type:")
-log(df_gaze_summary.groupby('game_type')['num_gaze'].describe())
-
-
-# histrogram:
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-avg_movements = df_summary.groupby('game_type')['num_movements'].mean()
-ax1.bar(avg_movements.index, avg_movements.values, color=['#3498db', '#e74c3c', '#2ecc71'])
-ax1.set_title('Average Movements by Game Type')
-ax1.set_xlabel('Game Type')
-ax1.set_ylabel('Average Movements')
-
-avg_gaze = df_gaze_summary.groupby('game_type')['num_gaze'].mean()
-ax2.bar(avg_gaze.index, avg_gaze.values, color=['#3498db', '#e74c3c', '#2ecc71'])
-ax2.set_title('Average Gaze Points by Game Type')
-ax2.set_xlabel('Game Type')
-ax2.set_ylabel('Average Gaze Points')
-
+plt.suptitle('Movement Features by Speech Category', fontsize=16, fontweight='bold', y=1.00)
 plt.tight_layout()
-plt.savefig(f"{output_dir}/chart1_avg_movements_gaze_{timestamp}.png", dpi=150)
+plt.savefig(f"{output_dir}/viz1_boxplots_by_category_{timestamp}.png", dpi=300, bbox_inches='tight')
+print(f"Saved: viz1_boxplots_by_category_{timestamp}.png")
 plt.show()
 
+#############################################
+# VISUALIZATION 2: FEATURE PROFILES HEATMAP
+#############################################
 
-# K-means clustering:
+print("\n" + "="*50)
+print("Creating Visualization 2: Feature Profiles Heatmap")
+print("="*50)
 
-log("\n" + "="*50)
-log("K-MEANS CLUSTERING ON MOVEMENTS")
-log("="*50)
+# Calculate mean features for each category
+category_means = df.groupby('speech_category')[
+    ['movement_entropy', 'direction_changes', 'repeated_sequences',
+     'unique_positions', 'num_revisits', 'num_moves']
+].mean()
 
-all_movements = []
+# Normalize to 0-1 scale for better visualization
+scaler = MinMaxScaler()
+category_means_scaled = pd.DataFrame(
+    scaler.fit_transform(category_means.T).T,
+    index=category_means.index,
+    columns=category_means.columns
+)
 
-for filename, data in game_states.items():
-    if 'movements' in data:
+# Reorder to: exploratory, confirmatory, exploitative
+order = ['exploratory', 'confirmatory', 'exploitative']
+category_means_scaled = category_means_scaled.reindex([cat for cat in order if cat in category_means_scaled.index])
 
-        if 'Game A' in filename or 'game1' in filename:
-            game_type = 'Game A'
-        elif 'Game B' in filename or 'game2' in filename:
-            game_type = 'Game B'
-        else:
-            game_type = 'Unknown'
+# Create heatmap
+plt.figure(figsize=(10, 4))
+sns.heatmap(category_means_scaled, annot=True, fmt='.2f', cmap='RdYlGn',
+            cbar_kws={'label': 'Normalized Mean Value'},
+            linewidths=1, linecolor='white')
+plt.title('Movement Feature Profiles by Speech Category', fontsize=14, fontweight='bold')
+plt.ylabel('Speech Category', fontsize=12)
+plt.xlabel('Movement Features', fontsize=12)
+plt.tight_layout()
+plt.savefig(f"{output_dir}/viz2_feature_profiles_heatmap_{timestamp}.png", dpi=300, bbox_inches='tight')
+print(f"Saved: viz2_feature_profiles_heatmap_{timestamp}.png")
+plt.show()
 
-        for movement in data['movements']:
-            # Extract features from each movement
-            pos = movement.get('positionBefore', {})
-            all_movements.append({
-                'x': pos.get('x', 0),
-                'y': pos.get('y', 0),
-                'level': movement.get('level', 0),
-                'direction': movement.get('direction', ''),
-                'game_type': game_type
-            })
+#############################################
+# VISUALIZATION 3: VIOLIN PLOTS
+#############################################
 
-# Create DataFrame
-df_all_movements = pd.DataFrame(all_movements)
-log(f"\nTotal movements collected: {len(df_all_movements)}")
-
-# Prepare features for clustering (x, y, level)
-features = df_all_movements[['x', 'y', 'level']]
-
-# Standardize the features
-scaler = StandardScaler()
-features_scaled = scaler.fit_transform(features)
-
-# Apply K-Means with 4 clusters
-kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-df_all_movements['cluster'] = kmeans.fit_predict(features_scaled)
-
-# Show cluster distribution
-log("\nCluster distribution:")
-log(df_all_movements['cluster'].value_counts().sort_index())
-
-# Show cluster centers (unscaled)
-centers_scaled = kmeans.cluster_centers_
-centers = scaler.inverse_transform(centers_scaled)
-log("\nCluster centers (x, y, level):")
-for i, center in enumerate(centers):
-    log(f"  Cluster {i}: x={center[0]:.1f}, y={center[1]:.1f}, level={center[2]:.1f}")
-
-# Show cluster breakdown by game type
-log("\nClusters by game type:")
-log(pd.crosstab(df_all_movements['game_type'], df_all_movements['cluster']))
-
-# Visualize as HEATMAPS (better for grid data)
-import numpy as np
+print("\n" + "="*50)
+print("Creating Visualization 3: Violin Plots")
+print("="*50)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-# Heatmap 1: All movements - count at each grid position
-heatmap_all = np.zeros((6, 6))
-for _, row in df_all_movements.iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_all[y, x] += 1
+# Movement entropy
+sns.violinplot(data=df, x='speech_category', y='movement_entropy', ax=axes[0])
+axes[0].set_title('Movement Entropy Distribution', fontsize=12, fontweight='bold')
+axes[0].set_ylabel('Entropy (bits)')
+axes[0].set_xlabel('Speech Category')
 
-im1 = axes[0].imshow(heatmap_all, cmap='hot', origin='lower')
-axes[0].set_title('Movement Density (All Games)')
-axes[0].set_xlabel('X Position')
-axes[0].set_ylabel('Y Position')
-plt.colorbar(im1, ax=axes[0], label='Count')
+# Direction changes (proportion)
+if 'prop_direction_changes' in df.columns:
+    sns.violinplot(data=df, x='speech_category', y='prop_direction_changes', ax=axes[1])
+    axes[1].set_title('Proportion of Direction Changes', fontsize=12, fontweight='bold')
+    axes[1].set_ylabel('Proportion')
+else:
+    sns.violinplot(data=df, x='speech_category', y='direction_changes', ax=axes[1])
+    axes[1].set_title('Direction Changes', fontsize=12, fontweight='bold')
+    axes[1].set_ylabel('Count')
+axes[1].set_xlabel('Speech Category')
 
-# Heatmap 2: Game A movements
-heatmap_a = np.zeros((6, 6))
-for _, row in df_all_movements[df_all_movements['game_type'] == 'Game A'].iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_a[y, x] += 1
+# Repeated sequences
+sns.violinplot(data=df, x='speech_category', y='repeated_sequences', ax=axes[2])
+axes[2].set_title('Repeated Movement Sequences', fontsize=12, fontweight='bold')
+axes[2].set_ylabel('Count')
+axes[2].set_xlabel('Speech Category')
 
-im2 = axes[1].imshow(heatmap_a, cmap='Blues', origin='lower')
-axes[1].set_title('Movement Density (Game A)')
-axes[1].set_xlabel('X Position')
-axes[1].set_ylabel('Y Position')
-plt.colorbar(im2, ax=axes[1], label='Count')
-
-# Heatmap 3: Game B movements
-heatmap_b = np.zeros((6, 6))
-for _, row in df_all_movements[df_all_movements['game_type'] == 'Game B'].iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_b[y, x] += 1
-
-im3 = axes[2].imshow(heatmap_b, cmap='Reds', origin='lower')
-axes[2].set_title('Movement Density (Game B)')
-axes[2].set_xlabel('X Position')
-axes[2].set_ylabel('Y Position')
-plt.colorbar(im3, ax=axes[2], label='Count')
-
+plt.suptitle('Distribution of Movement Features by Speech Category',
+             fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
-plt.savefig(f"{output_dir}/chart2_movement_density_heatmaps_{timestamp}.png", dpi=150)
+plt.savefig(f"{output_dir}/viz3_violin_plots_{timestamp}.png", dpi=300, bbox_inches='tight')
+print(f"Saved: viz3_violin_plots_{timestamp}.png")
 plt.show()
 
-# Bar chart showing clusters by GAME TYPE (clearer!)
-fig, ax = plt.subplots(figsize=(10, 5))
-cluster_game = df_all_movements.groupby(['cluster', 'game_type']).size().unstack(fill_value=0)
-cluster_game.plot(kind='bar', ax=ax, color=['#3498db', '#e74c3c'])  # Blue = Game A, Red = Game B
-ax.set_title('Cluster Distribution by Game Type')
-ax.set_xlabel('Cluster')
-ax.set_ylabel('Number of Movements')
-ax.legend(title='Game Type')
+#############################################
+# VISUALIZATION 4: PARTICIPANT DISTRIBUTION
+#############################################
 
-# Add labels to explain each cluster
-cluster_labels = {
-    0: 'Upper-left,\nLevel 2',
-    1: 'Lower-left,\nLevel 5',
-    2: 'Right side,\nLevel 2-3',
-    3: 'Bottom-left,\nLevel 2'
-}
-for i, label in cluster_labels.items():
-    ax.annotate(label, xy=(i, 0), xytext=(i, -1500), fontsize=8, ha='center', color='gray')
+print("\n" + "="*50)
+print("Creating Visualization 4: Participant Category Distribution")
+print("="*50)
 
+# Calculate proportion of each category per participant
+participant_categories = df.groupby(['participant_id', 'speech_category']).size().unstack(fill_value=0)
+participant_categories = participant_categories.div(participant_categories.sum(axis=1), axis=0)
+
+# Stacked bar chart
+fig, ax = plt.subplots(figsize=(14, 6))
+participant_categories.plot(kind='bar', stacked=True, ax=ax,
+                           color=['#ff9999', '#66b3ff', '#99ff99'])
+ax.set_title('Proportion of Speech Categories by Participant', fontsize=14, fontweight='bold')
+ax.set_xlabel('Participant', fontsize=12)
+ax.set_ylabel('Proportion', fontsize=12)
+ax.legend(title='Category', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
-plt.savefig(f"{output_dir}/chart3_cluster_by_game_type_{timestamp}.png", dpi=150)
+plt.savefig(f"{output_dir}/viz4_participant_distribution_{timestamp}.png", dpi=300, bbox_inches='tight')
+print(f"Saved: viz4_participant_distribution_{timestamp}.png")
 plt.show()
 
-log("\n" + "="*50)
-log("MOVEMENT DENSITY: LEVEL 1 vs LEVEL 5")
-log("="*50)
+#############################################
+# STATISTICAL TESTS
+#############################################
 
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+print("\n" + "="*50)
+print("STATISTICAL SIGNIFICANCE TESTS")
+print("="*50)
 
-# Game A - Level 1
-heatmap_a1 = np.zeros((6, 6))
-subset = df_all_movements[(df_all_movements['game_type'] == 'Game A') & (df_all_movements['level'] == 1)]
-for _, row in subset.iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_a1[y, x] += 1
-im1 = axes[0, 0].imshow(heatmap_a1, cmap='Blues', origin='lower')
-axes[0, 0].set_title(f'Game A - Level 1 ({len(subset)} movements)')
-axes[0, 0].set_xlabel('X Position')
-axes[0, 0].set_ylabel('Y Position')
-plt.colorbar(im1, ax=axes[0, 0], label='Count')
+stats_test_file = f"{output_dir}/statistical_tests_{timestamp}.txt"
+with open(stats_test_file, 'w') as f:
+    f.write("STATISTICAL TESTS FOR SPEECH-MOVEMENT ANALYSIS\n")
+    f.write("="*60 + "\n\n")
 
-# Game A - Level 5
-heatmap_a5 = np.zeros((6, 6))
-subset = df_all_movements[(df_all_movements['game_type'] == 'Game A') & (df_all_movements['level'] == 5)]
-for _, row in subset.iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_a5[y, x] += 1
-im2 = axes[0, 1].imshow(heatmap_a5, cmap='Blues', origin='lower')
-axes[0, 1].set_title(f'Game A - Level 5 ({len(subset)} movements)')
-axes[0, 1].set_xlabel('X Position')
-axes[0, 1].set_ylabel('Y Position')
-plt.colorbar(im2, ax=axes[0, 1], label='Count')
+    # Features to test
+    features = ['movement_entropy', 'direction_changes', 'repeated_sequences',
+                'unique_positions', 'num_moves', 'num_revisits']
 
-# Game B - Level 1
-heatmap_b1 = np.zeros((6, 6))
-subset = df_all_movements[(df_all_movements['game_type'] == 'Game B') & (df_all_movements['level'] == 1)]
-for _, row in subset.iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_b1[y, x] += 1
-im3 = axes[1, 0].imshow(heatmap_b1, cmap='Reds', origin='lower')
-axes[1, 0].set_title(f'Game B - Level 1 ({len(subset)} movements)')
-axes[1, 0].set_xlabel('X Position')
-axes[1, 0].set_ylabel('Y Position')
-plt.colorbar(im3, ax=axes[1, 0], label='Count')
+    for feature in features:
+        f.write(f"\n{feature.upper().replace('_', ' ')}:\n")
+        f.write("-" * 60 + "\n")
 
-# Game B - Level 5
-heatmap_b5 = np.zeros((6, 6))
-subset = df_all_movements[(df_all_movements['game_type'] == 'Game B') & (df_all_movements['level'] == 5)]
-for _, row in subset.iterrows():
-    x, y = int(row['x']), int(row['y'])
-    if 0 <= x < 6 and 0 <= y < 6:
-        heatmap_b5[y, x] += 1
-im4 = axes[1, 1].imshow(heatmap_b5, cmap='Reds', origin='lower')
-axes[1, 1].set_title(f'Game B - Level 5 ({len(subset)} movements)')
-axes[1, 1].set_xlabel('X Position')
-axes[1, 1].set_ylabel('Y Position')
-plt.colorbar(im4, ax=axes[1, 1], label='Count')
+        # Get data for each category
+        exploratory = df[df['speech_category'] == 'exploratory'][feature].dropna()
+        confirmatory = df[df['speech_category'] == 'confirmatory'][feature].dropna()
+        exploitative = df[df['speech_category'] == 'exploitative'][feature].dropna()
 
-plt.suptitle('Movement Density: Level 1 vs Level 5', fontsize=14, fontweight='bold')
-plt.tight_layout()
-plt.savefig(f"{output_dir}/chart4_level1_vs_level5_{timestamp}.png", dpi=150)
-plt.show()
+        # Check if we have all three categories
+        if len(exploratory) == 0 or len(confirmatory) == 0 or len(exploitative) == 0:
+            f.write("  Skipping - not all categories present\n")
+            continue
 
-# Close stats file and print summary
-stats_output.close()
-print(f"\n{'='*50}")
-print("FILES SAVED TO DOWNLOADS:")
-print(f"{'='*50}")
-print(f"  Stats: game_stats_{timestamp}.txt")
-print(f"  Chart 1: chart1_avg_movements_gaze_{timestamp}.png")
-print(f"  Chart 2: chart2_movement_density_heatmaps_{timestamp}.png")
-print(f"  Chart 3: chart3_cluster_by_game_type_{timestamp}.png")
-print(f"  Chart 4: chart4_level1_vs_level5_{timestamp}.png")
+        # One-way ANOVA
+        f_stat, p_value = f_oneway(exploratory, confirmatory, exploitative)
+
+        f.write(f"  One-way ANOVA:\n")
+        f.write(f"    F-statistic: {f_stat:.4f}\n")
+        f.write(f"    p-value: {p_value:.4f}\n")
+
+        if p_value < 0.001:
+            f.write(f"    Result: *** HIGHLY SIGNIFICANT (p < 0.001)\n")
+        elif p_value < 0.01:
+            f.write(f"    Result: ** SIGNIFICANT (p < 0.01)\n")
+        elif p_value < 0.05:
+            f.write(f"    Result: * SIGNIFICANT (p < 0.05)\n")
+        else:
+            f.write(f"    Result: NOT SIGNIFICANT (p >= 0.05)\n")
+
+        # If significant, do post-hoc tests
+        if p_value < 0.05:
+            f.write(f"\n  Post-hoc (Tukey HSD) pairwise comparisons:\n")
+
+            # Prepare data for Tukey
+            data_for_tukey = pd.DataFrame({
+                'value': list(exploratory) + list(confirmatory) + list(exploitative),
+                'category': ['exploratory']*len(exploratory) +
+                           ['confirmatory']*len(confirmatory) +
+                           ['exploitative']*len(exploitative)
+            })
+
+            tukey_result = pairwise_tukeyhsd(data_for_tukey['value'],
+                                            data_for_tukey['category'],
+                                            alpha=0.05)
+
+            f.write(str(tukey_result))
+            f.write("\n")
+
+        # Descriptive statistics
+        f.write(f"\n  Descriptive statistics:\n")
+        f.write(f"    Exploratory:   M={exploratory.mean():.3f}, SD={exploratory.std():.3f}, n={len(exploratory)}\n")
+        f.write(f"    Confirmatory:  M={confirmatory.mean():.3f}, SD={confirmatory.std():.3f}, n={len(confirmatory)}\n")
+        f.write(f"    Exploitative:  M={exploitative.mean():.3f}, SD={exploitative.std():.3f}, n={len(exploitative)}\n")
+        f.write("\n")
+
+print(f"Saved: statistical_tests_{timestamp}.txt")
+
+#############################################
+# SUMMARY STATISTICS
+#############################################
+
+print("\n" + "="*50)
+print("SUMMARY STATISTICS")
+print("="*50)
+
+# Save summary stats to text file
+stats_file = f"{output_dir}/summary_statistics_{timestamp}.txt"
+with open(stats_file, 'w') as f:
+    f.write("SPEECH-MOVEMENT ANALYSIS SUMMARY\n")
+    f.write("="*60 + "\n\n")
+
+    f.write(f"Total episodes: {len(df)}\n")
+    f.write(f"Participants: {df['participant_id'].nunique()}\n\n")
+
+    f.write("Speech Category Distribution:\n")
+    f.write(str(df['speech_category'].value_counts()) + "\n\n")
+
+    f.write("Movement Features by Category:\n")
+    f.write("="*60 + "\n")
+
+    for category in ['exploratory', 'confirmatory', 'exploitative']:
+        if category in df['speech_category'].values:
+            f.write(f"\n{category.upper()}:\n")
+            subset = df[df['speech_category'] == category]
+            f.write(f"  Movement entropy: {subset['movement_entropy'].mean():.3f} (+/-{subset['movement_entropy'].std():.3f})\n")
+            f.write(f"  Direction changes: {subset['direction_changes'].mean():.1f} (+/-{subset['direction_changes'].std():.1f})\n")
+            f.write(f"  Repeated sequences: {subset['repeated_sequences'].mean():.1f} (+/-{subset['repeated_sequences'].std():.1f})\n")
+            f.write(f"  Unique positions: {subset['unique_positions'].mean():.1f} (+/-{subset['unique_positions'].std():.1f})\n")
+            f.write(f"  Number of moves: {subset['num_moves'].mean():.1f} (+/-{subset['num_moves'].std():.1f})\n")
+
+print(f"Saved: summary_statistics_{timestamp}.txt")
+
+print("\n" + "="*50)
+print("ALL VISUALIZATIONS COMPLETE!")
+print("="*50)
+print(f"Check your Downloads folder for:")
+print(f"  - viz1_boxplots_by_category_{timestamp}.png")
+print(f"  - viz2_feature_profiles_heatmap_{timestamp}.png")
+print(f"  - viz3_violin_plots_{timestamp}.png")
+print(f"  - viz4_participant_distribution_{timestamp}.png")
+print(f"  - statistical_tests_{timestamp}.txt")
+print(f"  - summary_statistics_{timestamp}.txt")
