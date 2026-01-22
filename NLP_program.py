@@ -861,26 +861,67 @@ def run_full_pipeline():
     print("\nLoading participant tracker...")
     participant_tracker = ParticipantTracker(tracker_file)
 
-    # Step 2: Select transcript folder
+    # Step 2: Select Puzzle A transcript folder
     print("\n" + "=" * 60)
-    print("FOLDER: AUDIO TRANSCRIPTS")
+    print("FOLDER 1 of 2: PUZZLE A (GAME 1) TRANSCRIPTS")
     print("=" * 60)
-    print("Select the FOLDER containing your audio transcript files (.txt)")
+    print("Select the FOLDER containing Puzzle A / Game 1 transcript files (.txt)")
     print("These are the Whisper transcription output files.")
     print("File names look like: 'puzzle-game1-audio-2026-01-05T17-15-03_transcription.txt'")
     print("=" * 60)
     input(">>> Press ENTER to open folder picker...")
-    transcript_dir = select_folder("Select folder containing transcript files (.txt)")
-    if not transcript_dir:
+    transcript_dir_a = select_folder("FOLDER 1: Select Puzzle A Transcripts folder")
+    if not transcript_dir_a:
         print("No folder selected. Exiting.")
         return None
-    print(f"  Selected: {transcript_dir}")
+    print(f"  Selected: {transcript_dir_a}")
 
-    # Step 3: Process transcripts with NLP
+    # Step 3: Select Puzzle B transcript folder
+    print("\n" + "=" * 60)
+    print("FOLDER 2 of 2: PUZZLE B (GAME 2) TRANSCRIPTS")
+    print("=" * 60)
+    print("Select the FOLDER containing Puzzle B / Game 2 transcript files (.txt)")
+    print("These are the Whisper transcription output files.")
+    print("File names look like: 'puzzle-game2-audio-2026-01-05T17-20-15_transcription.txt'")
+    print("=" * 60)
+    input(">>> Press ENTER to open folder picker...")
+    transcript_dir_b = select_folder("FOLDER 2: Select Puzzle B Transcripts folder")
+    if not transcript_dir_b:
+        print("No folder selected. Exiting.")
+        return None
+    print(f"  Selected: {transcript_dir_b}")
+
+    # Step 4: Process transcripts with NLP
     print("\n" + "=" * 50)
     print("STEP 1: Classifying speech segments with NLP")
     print("=" * 50)
-    classified_df = process_all_transcripts(transcript_dir, participant_tracker=participant_tracker)
+
+    # Process both folders
+    print("\nProcessing Puzzle A transcripts...")
+    classified_df_a = process_all_transcripts(transcript_dir_a, participant_tracker=participant_tracker)
+
+    print("\nProcessing Puzzle B transcripts...")
+    classified_df_b = process_all_transcripts(transcript_dir_b, participant_tracker=participant_tracker)
+
+    # Combine results
+    if len(classified_df_a) > 0 and len(classified_df_b) > 0:
+        classified_df = pd.concat([classified_df_a, classified_df_b], ignore_index=True)
+    elif len(classified_df_a) > 0:
+        classified_df = classified_df_a
+    elif len(classified_df_b) > 0:
+        classified_df = classified_df_b
+    else:
+        classified_df = pd.DataFrame()
+
+    # Save combined results
+    if len(classified_df) > 0:
+        output_file = OUTPUT_DIR / "classified_speech_segments.csv"
+        classified_df.to_csv(output_file, index=False)
+        print(f"\nSaved combined classified segments to {output_file}")
+        print(f"Total segments: {len(classified_df)}")
+        print(f"Needs manual review: {classified_df['needs_review'].sum()}")
+        print(f"\nCategory breakdown:")
+        print(classified_df['auto_category'].value_counts())
 
     if len(classified_df) == 0:
         print("\nPipeline stopped: No transcripts to process.")
