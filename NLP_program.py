@@ -311,11 +311,19 @@ def parse_whisper_transcript(transcript_file):
     """
     Parse a Whisper transcript .txt file into segments
 
-    Expected format from transcribe.py:
-    === Puzzle B ===
+    Supports multiple formats:
 
+    Format 1 (timestamp on own line):
+    GAME A
+
+    00:00
+    Text here
+
+    00:03
+    More text here
+
+    Format 2 (bracketed timestamps):
     [00:00:00 - 00:00:05] Hello, this is the beginning.
-    [00:00:05 - 00:00:12] Now I'm doing something else.
 
     Returns:
         dict with 'puzzle_label' and 'segments' list
@@ -325,23 +333,84 @@ def parse_whisper_transcript(transcript_file):
 
     with open(transcript_file, 'r', encoding='utf-8') as f:
         content = f.read()
+        lines = content.split('\n')
 
-    # Extract puzzle label if present
+    # Extract puzzle/game label if present
     puzzle_match = re.search(r'=== (Puzzle [A-C]) ===', content)
     if puzzle_match:
         puzzle_label = puzzle_match.group(1)
 
-    # Parse timestamp lines: [00:00:00 - 00:00:05] text
-    pattern = r'\[(\d{2}:\d{2}:\d{2}) - (\d{2}:\d{2}:\d{2})\] (.+)'
-    matches = re.findall(pattern, content)
+    # Check for "GAME A" or "GAME B" at the start
+    game_match = re.search(r'^(GAME [A-C])', content, re.MULTILINE)
+    if game_match:
+        puzzle_label = game_match.group(1).replace('GAME', 'Puzzle')
 
-    for i, (start_time, end_time, text) in enumerate(matches):
-        segments.append({
-            'segment_id': i,
-            'start_time': start_time,
-            'end_time': end_time,
-            'text': text.strip()
-        })
+    # Try Format 2 first: [00:00:00 - 00:00:05] text
+    pattern_bracketed = r'\[(\d{2}:\d{2}:\d{2}) - (\d{2}:\d{2}:\d{2})\] (.+)'
+    matches = re.findall(pattern_bracketed, content)
+
+    if matches:
+        for i, (start_time, end_time, text) in enumerate(matches):
+            segments.append({
+                'segment_id': i,
+                'start_time': start_time,
+                'end_time': end_time,
+                'text': text.strip()
+            })
+    else:
+        # Format 1: timestamp on its own line, text on following lines
+        # Pattern: MM:SS or HH:MM:SS on its own line
+        current_timestamp = None
+        current_text_lines = []
+        segment_id = 0
+
+        for line in lines:
+            line = line.strip()
+
+            # Check if this line is a timestamp (MM:SS or HH:MM:SS)
+            timestamp_match = re.match(r'^(\d{1,2}:\d{2}(?::\d{2})?)$', line)
+
+            if timestamp_match:
+                # Save previous segment if we have one
+                if current_timestamp is not None and current_text_lines:
+                    text = ' '.join(current_text_lines).strip()
+                    if text:
+                        segments.append({
+                            'segment_id': segment_id,
+                            'start_time': current_timestamp,
+                            'end_time': '',  # Will calculate from next timestamp
+                            'text': text
+                        })
+                        segment_id += 1
+
+                # Start new segment
+                current_timestamp = timestamp_match.group(1)
+                # Normalize to HH:MM:SS format
+                if current_timestamp.count(':') == 1:
+                    current_timestamp = '00:' + current_timestamp
+                current_text_lines = []
+
+            elif line and current_timestamp is not None:
+                # Skip header lines like "GAME A"
+                if not re.match(r'^GAME [A-C]$', line):
+                    current_text_lines.append(line)
+
+        # Don't forget the last segment
+        if current_timestamp is not None and current_text_lines:
+            text = ' '.join(current_text_lines).strip()
+            if text:
+                segments.append({
+                    'segment_id': segment_id,
+                    'start_time': current_timestamp,
+                    'end_time': '',
+                    'text': text
+                })
+
+        # Calculate end times from next segment's start time
+        for i in range(len(segments) - 1):
+            segments[i]['end_time'] = segments[i + 1]['start_time']
+        if segments:
+            segments[-1]['end_time'] = segments[-1]['start_time']  # Last segment
 
     return {
         'puzzle_label': puzzle_label,
