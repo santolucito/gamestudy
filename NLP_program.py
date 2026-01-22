@@ -840,29 +840,41 @@ def run_full_pipeline():
     print(f"\nAll outputs will be saved to: {OUTPUT_DIR}")
 
     # Step 1: Select Participant Tracker CSV
-    print("\n" + "-" * 40)
-    print("Please select the PARTICIPANT TRACKER CSV file...")
+    print("\n" + "=" * 60)
+    print("FILE 1 of 2: PARTICIPANT TRACKER")
+    print("=" * 60)
+    print("Select the CSV file that maps Session IDs to game files.")
+    print("File name example: 'Participant Tracker.csv'")
+    print("Contains columns: Session ID, Game A Data, Game B Data, etc.")
+    print("=" * 60)
+    input(">>> Press ENTER to open file picker...")
     tracker_file = select_file(
-        "Select Participant Tracker CSV",
+        "FILE 1: Select Participant Tracker CSV",
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
     )
     if not tracker_file:
         print("No file selected. Exiting.")
         return None
-    print(f"  Participant Tracker: {tracker_file}")
+    print(f"  Selected: {tracker_file}")
 
     # Load participant tracker
     print("\nLoading participant tracker...")
     participant_tracker = ParticipantTracker(tracker_file)
 
     # Step 2: Select transcript folder
-    print("\n" + "-" * 40)
-    print("Please select the TRANSCRIPTS folder...")
+    print("\n" + "=" * 60)
+    print("FOLDER: AUDIO TRANSCRIPTS")
+    print("=" * 60)
+    print("Select the FOLDER containing your audio transcript files (.txt)")
+    print("These are the Whisper transcription output files.")
+    print("File names look like: 'puzzle-game1-audio-2026-01-05T17-15-03_transcription.txt'")
+    print("=" * 60)
+    input(">>> Press ENTER to open folder picker...")
     transcript_dir = select_folder("Select folder containing transcript files (.txt)")
     if not transcript_dir:
         print("No folder selected. Exiting.")
         return None
-    print(f"  Transcripts: {transcript_dir}")
+    print(f"  Selected: {transcript_dir}")
 
     # Step 3: Process transcripts with NLP
     print("\n" + "=" * 50)
@@ -966,17 +978,5 @@ def continue_pipeline_after_review():
 # =============================================================================
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("NLP Speech Classification Program")
-    print("=" * 60)
-    print(f"\nOutput directory: {OUTPUT_DIR}")
-    print("\nUsage:")
-    print("  1. Run run_full_pipeline() to start")
-    print("  2. Manually review 'manual_review_needed.csv' in Downloads")
-    print("  3. Run continue_pipeline_after_review() to finish")
-    print("\nOr run steps individually:")
-    print("  tracker = ParticipantTracker('path/to/tracker.csv')")
-    print("  classified_df = process_all_transcripts('path/to/transcripts', tracker)")
-    print("  create_manual_review_file(classified_df)")
-    print("  final_df = merge_manual_reviews(classified_df)")
-    print("  final_dataset = create_final_dataset(final_df, 'path/to/game_data', tracker)")
+    # Automatically run the full pipeline when script is executed
+    run_full_pipeline()
