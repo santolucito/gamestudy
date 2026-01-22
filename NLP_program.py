@@ -598,6 +598,7 @@ def create_manual_review_file(classified_df, output_file=None):
     # Reorder columns for easier review
     columns_order = [
         'participant_id', 'game', 'segment_id',
+        'start_time', 'end_time',  # TIMESTAMPS for finding in audio
         'text', 'audio_filename',
         'exploratory_score', 'confirmatory_score', 'exploitative_score',
         'exploratory_markers', 'confirmatory_markers', 'exploitative_markers',
