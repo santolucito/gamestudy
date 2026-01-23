@@ -216,6 +216,143 @@ class ParticipantTracker:
         return sorted(all_participants - self.excluded_participants)
 
 
+class GameStateAnalyzer:
+    """
+    Analyzes game-state JSON files to extract level timing information.
+    Used to correlate speech segments with game levels.
+    """
+
+    def __init__(self, gamestate_json_path):
+        """Load and parse a game-state JSON file."""
+        self.filepath = Path(gamestate_json_path)
+        self.data = None
+        self.session_start = None
+        self.level_timestamps = {}  # level_num -> {'start': datetime, 'end': datetime}
+
+        self._load_and_parse()
+
+    def _load_and_parse(self):
+        """Load JSON and extract level timing information."""
+        with open(self.filepath, 'r') as f:
+            self.data = json.load(f)
+
+        # Parse session start time
+        session_start_str = self.data.get('sessionStart', '')
+        if session_start_str:
+            self.session_start = self._parse_iso_timestamp(session_start_str)
+
+        # Extract level timestamps from movements
+        movements = self.data.get('movements', [])
+        for movement in movements:
+            level = movement.get('level')
+            timestamp_str = movement.get('timestamp', '')
+            if level is None or not timestamp_str:
+                continue
+
+            timestamp = self._parse_iso_timestamp(timestamp_str)
+            if timestamp is None:
+                continue
+
+            if level not in self.level_timestamps:
+                self.level_timestamps[level] = {'start': timestamp, 'end': timestamp}
+            else:
+                # Update end time to the latest timestamp for this level
+                if timestamp > self.level_timestamps[level]['end']:
+                    self.level_timestamps[level]['end'] = timestamp
+                if timestamp < self.level_timestamps[level]['start']:
+                    self.level_timestamps[level]['start'] = timestamp
+
+    def _parse_iso_timestamp(self, iso_string):
+        """Parse ISO 8601 timestamp string to datetime object."""
+        try:
+            # Handle format: 2026-01-11T20:22:08.894Z
+            iso_string = iso_string.replace('Z', '+00:00')
+            return datetime.fromisoformat(iso_string.replace('Z', ''))
+        except (ValueError, AttributeError):
+            try:
+                # Try without timezone
+                return datetime.strptime(iso_string[:19], '%Y-%m-%dT%H:%M:%S')
+            except:
+                return None
+
+    def get_level_for_timestamp(self, relative_seconds):
+        """
+        Determine which level a speech segment occurred in.
+
+        Args:
+            relative_seconds: Seconds from start of session/recording
+
+        Returns:
+            Level number (int) or None if can't be determined
+        """
+        if self.session_start is None:
+            return None
+
+        # Convert relative time to absolute time
+        absolute_time = self.session_start + timedelta(seconds=relative_seconds)
+
+        # Find which level this falls into
+        for level, times in self.level_timestamps.items():
+            # Add a small buffer (5 seconds) before level start for pre-level speech
+            level_start = times['start'] - timedelta(seconds=5)
+            level_end = times['end'] + timedelta(seconds=5)
+
+            if level_start <= absolute_time <= level_end:
+                return level
+
+        # If between levels, return the next level (anticipatory speech)
+        sorted_levels = sorted(self.level_timestamps.keys())
+        for i, level in enumerate(sorted_levels):
+            if absolute_time < self.level_timestamps[level]['start']:
+                return level  # Speech before this level starts
+
+        # If after all levels, return the last level
+        if sorted_levels:
+            return sorted_levels[-1]
+
+        return None
+
+    def get_level_info(self):
+        """Return summary of level timing information."""
+        info = {
+            'session_start': self.session_start,
+            'num_levels': len(self.level_timestamps),
+            'levels': {}
+        }
+        for level, times in sorted(self.level_timestamps.items()):
+            duration = (times['end'] - times['start']).total_seconds()
+            info['levels'][level] = {
+                'start': times['start'],
+                'end': times['end'],
+                'duration_seconds': duration
+            }
+        return info
+
+
+def parse_timestamp_to_seconds(timestamp_str):
+    """
+    Convert timestamp string (MM:SS or HH:MM:SS) to total seconds.
+
+    Args:
+        timestamp_str: e.g., "01:23" or "01:23:45"
+
+    Returns:
+        Total seconds as float, or None if parsing fails
+    """
+    if not timestamp_str:
+        return None
+
+    try:
+        parts = timestamp_str.strip().split(':')
+        if len(parts) == 2:  # MM:SS
+            return int(parts[0]) * 60 + float(parts[1])
+        elif len(parts) == 3:  # HH:MM:SS
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+    except (ValueError, IndexError):
+        pass
+    return None
+
+
 class SpeechCategoryClassifier:
     """Classify speech segments based on linguistic markers"""
 
@@ -224,16 +361,18 @@ class SpeechCategoryClassifier:
         # Exploratory = explore, Confirmatory = establish, Exploitative = exploit
         self.exploratory_markers = {
             'questions': ['what', 'why', 'how', 'where', 'which', 'when'],
-            'uncertainty': ['maybe', 'might', 'could', 'perhaps', 'wonder', 'not sure',
-                           "don't know", 'trying to figure', 'confused', 'hmm', 'uh'],
-            'exploration_verbs': ['exploring', 'looking', 'checking', 'seeing',
+            'uncertainty': ['not sure', "don't know", 'trying to figure', 'confused'],
+            'exploration_verbs': ['exploring', 'checking', 'seeing',
                                   'trying different', 'experimenting', 'random', 'randomly'],
-            'hedges': ['I think maybe', 'kind of', 'sort of', 'seems like']
+            'observations': ['I see', "there's", 'there are', 'there is',
+                            'this is', 'interesting', "doesn't make sense"]
         }
 
         self.confirmatory_markers = {
             'hypothesis_statements': ['I think', 'my hypothesis', 'if...then',
-                                     'probably', 'should be', 'seems like', 'bet', 'wonder if'],
+                                     'probably', 'should be', 'seems like', 'bet', 'wonder if',
+                                     'I think maybe', 'kind of', 'sort of',
+                                     'maybe', 'might', 'could', 'perhaps', 'wonder'],
             'testing_language': ['let me test', 'testing', 'checking if', 'see if',
                                 'trying to confirm', 'verify', 'test whether',
                                 'gonna try', 'let me see if', 'let me check',
@@ -246,10 +385,10 @@ class SpeechCategoryClassifier:
             'certainty': ['I know', 'definitely', 'obviously', 'clearly', 'for sure',
                          'certain', 'figured it out', 'got it', 'understand'],
             'execution': ["now I'll just", 'just need to', 'all I have to do',
-                         'simply', 'just going to', 'now I can', 'okay now',
-                         'alright now', 'just', 'easy'],
+                         'just going to', 'now I can', 'okay now',
+                         'alright now', 'easy', 'match'],
             'completion': ['almost done', 'finish', 'complete', 'final step',
-                          'last thing', 'done', 'solved']
+                          'last step', 'last thing', 'done', 'solved']
         }
 
     def score_category(self, text, markers_dict):
@@ -285,26 +424,136 @@ class SpeechCategoryClassifier:
         }
 
         max_score = max(scores.values())
+        total_score = sum(scores.values())
 
         # Flag for manual review if:
         # 1. No markers matched
         # 2. Tie between categories
-        # 3. Low confidence
+        # 3. Only 1 marker matched (too ambiguous)
         if max_score == 0:
-            return 'NEEDS_MANUAL_REVIEW', 0.0, scores, markers_matched
+            return 'NEEDS_MANUAL_REVIEW', 'low', scores, markers_matched
 
         max_categories = [cat for cat, score in scores.items() if score == max_score]
         if len(max_categories) > 1:
-            return 'NEEDS_MANUAL_REVIEW', 0.0, scores, markers_matched
+            return 'NEEDS_MANUAL_REVIEW', 'low', scores, markers_matched
+
+        # Single marker match is ambiguous - flag for review
+        if total_score == 1:
+            category = max(scores, key=scores.get)
+            return 'NEEDS_MANUAL_REVIEW', 'low', scores, markers_matched
 
         category = max(scores, key=scores.get)
-        total_score = sum(scores.values())
-        confidence = max_score / total_score if total_score > 0 else 0
 
-        if confidence < 0.6:
+        # Calculate confidence level
+        # High: max_score >= 3 AND dominates other categories
+        # Medium: max_score >= 2 OR clear winner
+        # Low: max_score == 1 or close competition
+        if max_score >= 3 and max_score >= total_score * 0.6:
+            confidence = 'high'
+        elif max_score >= 2 and max_score > total_score * 0.5:
+            confidence = 'medium'
+        else:
+            confidence = 'low'
+            # Low confidence should go to manual review
             return 'NEEDS_MANUAL_REVIEW', confidence, scores, markers_matched
 
         return category, confidence, scores, markers_matched
+
+
+def apply_sequential_context(results_df, time_window_seconds=3):
+    """
+    Apply sequential context analysis to ALL segments.
+
+    For each segment, look at surrounding segments within the time window.
+    If the segment's classification conflicts with the dominant pattern of
+    nearby segments, flag it for review.
+
+    Args:
+        results_df: DataFrame with classification results
+        time_window_seconds: Max time gap to consider segments as contextually related
+
+    Returns:
+        Updated DataFrame with 'context_adjusted_category' and 'context_flag' columns
+    """
+    df = results_df.copy()
+
+    # Add columns for context analysis
+    df['context_adjusted_category'] = df['auto_category']
+    df['context_source'] = ''  # Track where the context came from
+    df['context_flag'] = ''  # Flag potential misclassifications
+
+    # Convert timestamps to seconds for comparison
+    df['start_seconds'] = df['start_time'].apply(parse_timestamp_to_seconds)
+
+    # Process ALL segments (not just NEEDS_MANUAL_REVIEW)
+    for idx in df.index:
+        current_time = df.loc[idx, 'start_seconds']
+        if current_time is None:
+            continue
+
+        current_category = df.loc[idx, 'auto_category']
+
+        # Get the same participant and game only
+        participant = df.loc[idx, 'participant_id']
+        game = df.loc[idx, 'game']
+
+        # Find surrounding segments within time window (excluding current segment)
+        mask = (
+            (df['participant_id'] == participant) &
+            (df['game'] == game) &
+            (df['start_seconds'].notna()) &
+            (df.index != idx)
+        )
+
+        nearby = df[mask].copy()
+        if len(nearby) == 0:
+            continue
+
+        # Calculate time differences
+        nearby['time_diff'] = abs(nearby['start_seconds'] - current_time)
+
+        # Get segments within the time window
+        within_window = nearby[nearby['time_diff'] <= time_window_seconds]
+
+        if len(within_window) == 0:
+            continue
+
+        # Count categories of nearby segments (excluding NEEDS_MANUAL_REVIEW for counting)
+        classified_nearby = within_window[within_window['auto_category'] != 'NEEDS_MANUAL_REVIEW']
+        if len(classified_nearby) == 0:
+            continue
+
+        category_counts = classified_nearby['auto_category'].value_counts()
+        closest_time_diff = within_window['time_diff'].min()
+
+        if len(category_counts) == 0:
+            continue
+
+        dominant_category = category_counts.index[0]
+        dominant_count = category_counts.iloc[0]
+        total_nearby = len(classified_nearby)
+
+        # For NEEDS_MANUAL_REVIEW segments: inherit from context if clear pattern
+        if current_category == 'NEEDS_MANUAL_REVIEW':
+            if dominant_count >= 2 or (dominant_count >= 1 and closest_time_diff <= 1.5):
+                df.loc[idx, 'context_adjusted_category'] = dominant_category
+                df.loc[idx, 'context_source'] = f'inherited_{closest_time_diff:.1f}s'
+
+        # For already-classified segments: check if context conflicts
+        else:
+            # If dominant nearby category differs AND is strong pattern, flag for review
+            if dominant_category != current_category:
+                dominance_ratio = dominant_count / total_nearby if total_nearby > 0 else 0
+
+                # Flag if context strongly suggests different category
+                if dominance_ratio >= 0.7 and dominant_count >= 2:
+                    df.loc[idx, 'context_flag'] = f'context_suggests_{dominant_category}'
+                    df.loc[idx, 'needs_review'] = True  # Flag for manual review
+
+    # Clean up temporary column
+    df = df.drop(columns=['start_seconds'], errors='ignore')
+
+    return df
 
 
 def parse_whisper_transcript(transcript_file):
@@ -437,7 +686,8 @@ def parse_game_from_filename(filename):
         return 'Unknown'
 
 
-def process_transcript_file(transcript_file, participant_tracker=None, participant_id=None, game_name=None):
+def process_transcript_file(transcript_file, participant_tracker=None, participant_id=None,
+                           game_name=None, gamestate_analyzer=None):
     """
     Process one participant's transcript file
 
@@ -446,6 +696,7 @@ def process_transcript_file(transcript_file, participant_tracker=None, participa
         participant_tracker: ParticipantTracker instance for ID lookup
         participant_id: Participant ID (optional, will try to extract)
         game_name: 'Game A', 'Game B', or 'Game C' (optional, will try to extract)
+        gamestate_analyzer: GameStateAnalyzer instance for level detection (optional)
 
     Returns:
         DataFrame with classified speech segments
@@ -504,14 +755,23 @@ def process_transcript_file(transcript_file, participant_tracker=None, participa
         # Classify
         category, confidence, scores, markers = classifier.classify(text)
 
+        # Determine level from game-state data if available
+        level = None
+        if gamestate_analyzer:
+            start_seconds = parse_timestamp_to_seconds(start_time)
+            if start_seconds is not None:
+                level = gamestate_analyzer.get_level_for_timestamp(start_seconds)
+
         results.append({
             'participant_id': participant_id,
             'game': game_name,
+            'level': level,
             'segment_id': segment_id,
             'start_time': start_time,
             'end_time': end_time,
             'text': text,
             'audio_filename': filename,
+            'transcript_file_path': str(transcript_path),  # Full path for linking
             'auto_category': category,
             'confidence': confidence,
             'exploratory_score': scores['exploratory'],
@@ -526,17 +786,20 @@ def process_transcript_file(transcript_file, participant_tracker=None, participa
     return pd.DataFrame(results)
 
 
-def process_all_transcripts(transcript_dir, participant_tracker=None, output_file=None):
+def process_all_transcripts(transcript_dir, participant_tracker=None, output_file=None,
+                           gamestate_dir=None, apply_context=True):
     """
     Process all transcript files in a directory
 
     Args:
         transcript_dir: Directory containing transcript files (.txt or .json)
         participant_tracker: ParticipantTracker instance for ID lookup
-        output_file: Where to save the classified segments CSV
+        output_file: Where to save the classified segments
+        gamestate_dir: Directory containing game-state JSON files (optional)
+        apply_context: Whether to apply sequential context analysis (default True)
     """
     if output_file is None:
-        output_file = OUTPUT_DIR / "classified_speech_segments.csv"
+        output_file = OUTPUT_DIR / "classified_speech_segments.xlsx"
 
     all_results = []
 
@@ -551,14 +814,49 @@ def process_all_transcripts(transcript_dir, participant_tracker=None, output_fil
         print("Make sure your transcriptions are in the correct folder.")
         return pd.DataFrame()
 
+    # Load game-state files if directory provided
+    gamestate_lookup = {}
+    if gamestate_dir:
+        gamestate_path = Path(gamestate_dir)
+        gamestate_files = list(gamestate_path.glob('*.json'))
+        print(f"Found {len(gamestate_files)} game-state files in {gamestate_dir}")
+
+        for gs_file in gamestate_files:
+            # Extract timestamp from filename to match with transcripts
+            match = re.search(r'(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})', gs_file.name)
+            if match:
+                timestamp = match.group(1)
+                try:
+                    gamestate_lookup[timestamp] = GameStateAnalyzer(gs_file)
+                except Exception as e:
+                    print(f"  Warning: Could not load game-state {gs_file.name}: {e}")
+
     for transcript_file in transcript_files:
         print(f"Processing {transcript_file.name}...")
 
+        # Find matching game-state analyzer
+        gamestate_analyzer = None
+        if gamestate_lookup:
+            match = re.search(r'(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})', transcript_file.name)
+            if match:
+                timestamp = match.group(1)
+                gamestate_analyzer = gamestate_lookup.get(timestamp)
+                if gamestate_analyzer:
+                    print(f"  -> Matched game-state file for level detection")
+
         try:
-            df = process_transcript_file(transcript_file, participant_tracker=participant_tracker)
+            df = process_transcript_file(
+                transcript_file,
+                participant_tracker=participant_tracker,
+                gamestate_analyzer=gamestate_analyzer
+            )
             if len(df) > 0:
                 all_results.append(df)
-                print(f"  -> {len(df)} segments, participant: {df['participant_id'].iloc[0]}")
+                level_info = ""
+                if 'level' in df.columns and df['level'].notna().any():
+                    levels = df['level'].dropna().unique()
+                    level_info = f", levels: {sorted([int(l) for l in levels])}"
+                print(f"  -> {len(df)} segments, participant: {df['participant_id'].iloc[0]}{level_info}")
         except Exception as e:
             print(f"  Error processing {transcript_file.name}: {e}")
             continue
@@ -570,14 +868,91 @@ def process_all_transcripts(transcript_dir, participant_tracker=None, output_fil
     # Combine all results
     final_df = pd.concat(all_results, ignore_index=True)
 
-    # Save to CSV
-    final_df.to_csv(output_file, index=False)
+    # Apply sequential context analysis
+    if apply_context:
+        print("\nApplying sequential context analysis...")
+        final_df = apply_sequential_context(final_df, time_window_seconds=3)
+        context_adjusted = (final_df['context_adjusted_category'] != final_df['auto_category']).sum()
+        print(f"  -> {context_adjusted} segments adjusted based on context")
+
+    # Calculate summary statistics
+    total_segments = len(final_df)
+    confidence_counts = final_df['confidence'].value_counts()
+    high_count = confidence_counts.get('high', 0)
+    medium_count = confidence_counts.get('medium', 0)
+    low_count = confidence_counts.get('low', 0)
+
+    high_pct = (high_count / total_segments * 100) if total_segments > 0 else 0
+    medium_pct = (medium_count / total_segments * 100) if total_segments > 0 else 0
+    low_pct = (low_count / total_segments * 100) if total_segments > 0 else 0
+
+    # Create summary dataframe
+    summary_data = {
+        'Metric': [
+            'Total Segments',
+            '',
+            'High Confidence',
+            'Medium Confidence',
+            'Low Confidence',
+            '',
+            'Needs Manual Review',
+            '',
+            'Category: exploratory',
+            'Category: confirmatory',
+            'Category: exploitative',
+            'Category: NEEDS_MANUAL_REVIEW'
+        ],
+        'Count': [
+            total_segments,
+            '',
+            high_count,
+            medium_count,
+            low_count,
+            '',
+            final_df['needs_review'].sum(),
+            '',
+            (final_df['auto_category'] == 'exploratory').sum(),
+            (final_df['auto_category'] == 'confirmatory').sum(),
+            (final_df['auto_category'] == 'exploitative').sum(),
+            (final_df['auto_category'] == 'NEEDS_MANUAL_REVIEW').sum()
+        ],
+        'Percentage': [
+            '100%',
+            '',
+            f'{high_pct:.1f}%',
+            f'{medium_pct:.1f}%',
+            f'{low_pct:.1f}%',
+            '',
+            f'{(final_df["needs_review"].sum() / total_segments * 100):.1f}%' if total_segments > 0 else '0%',
+            '',
+            f'{((final_df["auto_category"] == "exploratory").sum() / total_segments * 100):.1f}%' if total_segments > 0 else '0%',
+            f'{((final_df["auto_category"] == "confirmatory").sum() / total_segments * 100):.1f}%' if total_segments > 0 else '0%',
+            f'{((final_df["auto_category"] == "exploitative").sum() / total_segments * 100):.1f}%' if total_segments > 0 else '0%',
+            f'{((final_df["auto_category"] == "NEEDS_MANUAL_REVIEW").sum() / total_segments * 100):.1f}%' if total_segments > 0 else '0%'
+        ]
+    }
+    summary_df = pd.DataFrame(summary_data)
+
+    # Save to Excel with summary sheet first
+    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+        final_df.to_excel(writer, sheet_name='Classified Segments', index=False)
 
     print(f"\nSaved classified segments to {output_file}")
-    print(f"Total segments: {len(final_df)}")
-    print(f"Needs manual review: {final_df['needs_review'].sum()}")
-    print(f"\nCategory breakdown:")
+    print(f"\n{'='*40}")
+    print("CLASSIFICATION SUMMARY")
+    print(f"{'='*40}")
+    print(f"Total segments: {total_segments}")
+    print(f"\nConfidence breakdown:")
+    print(f"  High:   {high_count:>5} ({high_pct:.1f}%)")
+    print(f"  Medium: {medium_count:>5} ({medium_pct:.1f}%)")
+    print(f"  Low:    {low_count:>5} ({low_pct:.1f}%)")
+    print(f"\nNeeds manual review: {final_df['needs_review'].sum()}")
+    print(f"\nCategory breakdown (auto):")
     print(final_df['auto_category'].value_counts())
+    if 'context_adjusted_category' in final_df.columns:
+        print(f"\nCategory breakdown (after context adjustment):")
+        print(final_df['context_adjusted_category'].value_counts())
 
     return final_df
 
@@ -599,9 +974,10 @@ def create_manual_review_file(classified_df, output_file=None):
 
     # Reorder columns for easier review
     columns_order = [
-        'participant_id', 'game', 'segment_id',
-        'start_time', 'end_time',  # TIMESTAMPS for finding in audio
-        'text', 'audio_filename',
+        'participant_id', 'game', 'level',  # Level from game-state data
+        'segment_id', 'start_time', 'end_time',  # TIMESTAMPS for finding in audio
+        'text', 'audio_filename', 'transcript_file_path',  # Full path to find the file
+        'auto_category', 'context_adjusted_category', 'context_source', 'context_flag',  # Context analysis
         'exploratory_score', 'confirmatory_score', 'exploitative_score',
         'exploratory_markers', 'confirmatory_markers', 'exploitative_markers',
         'confidence',
@@ -844,7 +1220,7 @@ def create_final_dataset(classified_speech_df, game_data_dir, participant_tracke
         output_file: Where to save final CSV
     """
     if output_file is None:
-        output_file = OUTPUT_DIR / "NLP_features_for_analysis.csv"
+        output_file = OUTPUT_DIR / "NLP_features_for_analysis.xlsx"
 
     results = []
     game_data_path = Path(game_data_dir)
@@ -904,7 +1280,7 @@ def create_final_dataset(classified_speech_df, game_data_dir, participant_tracke
     final_df = pd.DataFrame(results)
 
     if len(final_df) > 0:
-        final_df.to_csv(output_file, index=False)
+        final_df.to_excel(output_file, index=False)
         print(f"\nCreated final dataset: {output_file}")
         print(f"{len(final_df)} speech-movement pairs")
     else:
@@ -950,7 +1326,7 @@ def run_full_pipeline():
 
     # Step 2: Select Puzzle A transcript folder
     print("\n" + "=" * 60)
-    print("FOLDER 1 of 2: PUZZLE A (GAME 1) TRANSCRIPTS")
+    print("FOLDER 1 of 4: PUZZLE A (GAME 1) TRANSCRIPTS")
     print("=" * 60)
     print("Select the FOLDER containing Puzzle A / Game 1 transcript files (.txt)")
     print("These are the Whisper transcription output files.")
@@ -963,20 +1339,52 @@ def run_full_pipeline():
         return None
     print(f"  Selected: {transcript_dir_a}")
 
-    # Step 3: Select Puzzle B transcript folder
+    # Step 3: Select Puzzle A game-state folder
     print("\n" + "=" * 60)
-    print("FOLDER 2 of 2: PUZZLE B (GAME 2) TRANSCRIPTS")
+    print("FOLDER 2 of 4: PUZZLE A (GAME 1) GAME-STATE DATA")
+    print("=" * 60)
+    print("Select the FOLDER containing Puzzle A / Game 1 game-state JSON files.")
+    print("These contain movement data and level timing information.")
+    print("File names look like: 'puzzle-game1-state-2026-01-05T17-15-03-300Z.json'")
+    print("=" * 60)
+    input(">>> Press ENTER to open folder picker...")
+    gamestate_dir_a = select_folder("FOLDER 2: Select Puzzle A Game-State folder")
+    if not gamestate_dir_a:
+        print("No folder selected - will proceed without level detection for Puzzle A.")
+        gamestate_dir_a = None
+    else:
+        print(f"  Selected: {gamestate_dir_a}")
+
+    # Step 4: Select Puzzle B transcript folder
+    print("\n" + "=" * 60)
+    print("FOLDER 3 of 4: PUZZLE B (GAME 2) TRANSCRIPTS")
     print("=" * 60)
     print("Select the FOLDER containing Puzzle B / Game 2 transcript files (.txt)")
     print("These are the Whisper transcription output files.")
     print("File names look like: 'puzzle-game2-audio-2026-01-05T17-20-15_transcription.txt'")
     print("=" * 60)
     input(">>> Press ENTER to open folder picker...")
-    transcript_dir_b = select_folder("FOLDER 2: Select Puzzle B Transcripts folder")
+    transcript_dir_b = select_folder("FOLDER 3: Select Puzzle B Transcripts folder")
     if not transcript_dir_b:
         print("No folder selected. Exiting.")
         return None
     print(f"  Selected: {transcript_dir_b}")
+
+    # Step 5: Select Puzzle B game-state folder
+    print("\n" + "=" * 60)
+    print("FOLDER 4 of 4: PUZZLE B (GAME 2) GAME-STATE DATA")
+    print("=" * 60)
+    print("Select the FOLDER containing Puzzle B / Game 2 game-state JSON files.")
+    print("These contain movement data and level timing information.")
+    print("File names look like: 'puzzle-game2-state-2026-01-05T17-20-15-300Z.json'")
+    print("=" * 60)
+    input(">>> Press ENTER to open folder picker...")
+    gamestate_dir_b = select_folder("FOLDER 4: Select Puzzle B Game-State folder")
+    if not gamestate_dir_b:
+        print("No folder selected - will proceed without level detection for Puzzle B.")
+        gamestate_dir_b = None
+    else:
+        print(f"  Selected: {gamestate_dir_b}")
 
     # Step 4: Process transcripts with NLP
     print("\n" + "=" * 50)
@@ -985,10 +1393,20 @@ def run_full_pipeline():
 
     # Process both folders
     print("\nProcessing Puzzle A transcripts...")
-    classified_df_a = process_all_transcripts(transcript_dir_a, participant_tracker=participant_tracker)
+    classified_df_a = process_all_transcripts(
+        transcript_dir_a,
+        participant_tracker=participant_tracker,
+        gamestate_dir=gamestate_dir_a,
+        apply_context=True
+    )
 
     print("\nProcessing Puzzle B transcripts...")
-    classified_df_b = process_all_transcripts(transcript_dir_b, participant_tracker=participant_tracker)
+    classified_df_b = process_all_transcripts(
+        transcript_dir_b,
+        participant_tracker=participant_tracker,
+        gamestate_dir=gamestate_dir_b,
+        apply_context=True
+    )
 
     # Combine results
     if len(classified_df_a) > 0 and len(classified_df_b) > 0:
@@ -1000,13 +1418,68 @@ def run_full_pipeline():
     else:
         classified_df = pd.DataFrame()
 
-    # Save combined results
+    # Save combined results with summary statistics
     if len(classified_df) > 0:
-        output_file = OUTPUT_DIR / "classified_speech_segments.csv"
-        classified_df.to_csv(output_file, index=False)
+        output_file = OUTPUT_DIR / "classified_speech_segments.xlsx"
+
+        # Calculate summary statistics
+        total_segments = len(classified_df)
+        confidence_counts = classified_df['confidence'].value_counts()
+        high_count = confidence_counts.get('high', 0)
+        medium_count = confidence_counts.get('medium', 0)
+        low_count = confidence_counts.get('low', 0)
+
+        high_pct = (high_count / total_segments * 100) if total_segments > 0 else 0
+        medium_pct = (medium_count / total_segments * 100) if total_segments > 0 else 0
+        low_pct = (low_count / total_segments * 100) if total_segments > 0 else 0
+
+        needs_review_count = classified_df['needs_review'].sum()
+        needs_review_pct = (needs_review_count / total_segments * 100) if total_segments > 0 else 0
+
+        # Create summary dataframe
+        summary_data = {
+            'Metric': [
+                'Total Segments',
+                '',
+                'High Confidence',
+                'Medium Confidence',
+                'Low Confidence',
+                '',
+                'Needs Manual Review'
+            ],
+            'Count': [
+                total_segments,
+                '',
+                high_count,
+                medium_count,
+                low_count,
+                '',
+                needs_review_count
+            ],
+            'Percentage': [
+                '100%',
+                '',
+                f'{high_pct:.1f}%',
+                f'{medium_pct:.1f}%',
+                f'{low_pct:.1f}%',
+                '',
+                f'{needs_review_pct:.1f}%'
+            ]
+        }
+        summary_df = pd.DataFrame(summary_data)
+
+        # Save with Summary sheet first
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+            classified_df.to_excel(writer, sheet_name='Classified Segments', index=False)
+
         print(f"\nSaved combined classified segments to {output_file}")
-        print(f"Total segments: {len(classified_df)}")
-        print(f"Needs manual review: {classified_df['needs_review'].sum()}")
+        print(f"\n--- SUMMARY STATISTICS ---")
+        print(f"Total segments: {total_segments}")
+        print(f"  High confidence:   {high_count} ({high_pct:.1f}%)")
+        print(f"  Medium confidence: {medium_count} ({medium_pct:.1f}%)")
+        print(f"  Low confidence:    {low_count} ({low_pct:.1f}%)")
+        print(f"  Needs manual review: {needs_review_count} ({needs_review_pct:.1f}%)")
         print(f"\nCategory breakdown:")
         print(classified_df['auto_category'].value_counts())
 
@@ -1022,7 +1495,7 @@ def run_full_pipeline():
 
     print("\n" + "=" * 50)
     print(">>> PAUSE HERE <<<")
-    print(f">>> Manually review 'manual_review_needed.csv' in {OUTPUT_DIR} <<<")
+    print(f">>> Manually review 'manual_review_needed.xlsx' in {OUTPUT_DIR} <<<")
     print(">>> Then run: continue_pipeline_after_review() <<<")
     print("=" * 50)
 
@@ -1060,7 +1533,7 @@ def continue_pipeline_after_review():
     print(f"  Game data: {game_data_dir}")
 
     # Load the classified data
-    classified_file = OUTPUT_DIR / "classified_speech_segments.csv"
+    classified_file = OUTPUT_DIR / "classified_speech_segments.xlsx"
     if not classified_file.exists():
         print(f"Error: Could not find {classified_file}")
         print("Please run run_full_pipeline() first.")
@@ -1073,7 +1546,7 @@ def continue_pipeline_after_review():
     print("STEP 3: Merging manual reviews")
     print("=" * 50)
     final_classified_df = merge_manual_reviews(classified_df)
-    final_classified_df.to_csv(OUTPUT_DIR / "final_classified_segments.csv", index=False)
+    final_classified_df.to_excel(OUTPUT_DIR / "final_classified_segments.xlsx", index=False)
 
     # Link to movements and create final dataset
     print("\n" + "=" * 50)
@@ -1089,10 +1562,10 @@ def continue_pipeline_after_review():
     print("PIPELINE COMPLETE!")
     print("=" * 50)
     print(f"\nOutput files saved to: {OUTPUT_DIR}")
-    print("  - classified_speech_segments.csv")
-    print("  - manual_review_needed.csv")
-    print("  - final_classified_segments.csv")
-    print("  - NLP_features_for_analysis.csv")
+    print("  - classified_speech_segments.xlsx")
+    print("  - manual_review_needed.xlsx")
+    print("  - final_classified_segments.xlsx")
+    print("  - NLP_features_for_analysis.xlsx")
     print("\nReady for data_analysis.py!")
 
     # Cleanup file selector

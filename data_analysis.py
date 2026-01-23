@@ -709,34 +709,48 @@ class ARCDataAnalyzer:
 
     def enjoyment_correlation_analysis(self):
         """
-        Analyze correlation between game enjoyment (Likert scales) and efficiency rank.
+        Analyze correlation between game enjoyment (Likert scales) and completion time.
 
         Tests:
-        - Video game enjoyment vs efficiency rank (Spearman + Linear Regression)
-        - Puzzle enjoyment vs efficiency rank (Spearman + Linear Regression)
+        - Video game enjoyment vs completion time (Spearman + Linear Regression)
+        - Puzzle enjoyment vs completion time (Spearman + Linear Regression)
         """
         if self.demographic_df is None:
             print("  Demographic data not loaded - skipping enjoyment correlation")
             return None
 
-        print("\n  Enjoyment vs Efficiency Correlation Analysis")
+        print("\n  Enjoyment vs Completion Time Correlation Analysis")
 
         # Find enjoyment columns
+        # Video game enjoyment: look for 'video game' in column name
         videogame_cols = [c for c in self.demographic_df.columns if 'video game' in c.lower()]
-        puzzle_cols = [c for c in self.demographic_df.columns if 'puzzle' in c.lower()]
 
-        if not videogame_cols and not puzzle_cols:
+        # Puzzle enjoyment: look for the specific survey question about puzzle games
+        # The column is: "How much do you enjoy puzzle games, such as crossword puzzles, sudoku, or Tetris?"
+        puzzle_enjoy_cols = [c for c in self.demographic_df.columns
+                           if ('puzzle game' in c.lower() or 'sudoku' in c.lower() or
+                               'tetris' in c.lower() or 'crossword' in c.lower())]
+
+        # Fallback: look for columns with 'enjoy' AND 'puzzle'
+        if not puzzle_enjoy_cols:
+            puzzle_enjoy_cols = [c for c in self.demographic_df.columns
+                               if 'puzzle' in c.lower() and 'enjoy' in c.lower()]
+
+        if not videogame_cols and not puzzle_enjoy_cols:
             print("    No enjoyment columns found in demographic data")
             return None
 
         videogame_col = videogame_cols[0] if videogame_cols else None
-        puzzle_col = puzzle_cols[0] if puzzle_cols else None
+        puzzle_col = puzzle_enjoy_cols[0] if puzzle_enjoy_cols else None
+
+        print(f"    Video game enjoyment column: {videogame_col}")
+        print(f"    Puzzle enjoyment column: {puzzle_col}")
 
         # Find session ID column
         id_cols = [c for c in self.demographic_df.columns if 'session' in c.lower() or 'id' in c.lower()]
         id_col = id_cols[0] if id_cols else self.demographic_df.columns[0]
 
-        # Calculate efficiency rank (lower time = rank 1 = more efficient)
+        # Calculate mean completion time for each participant
         all_times = {}
         for game in ['Game A', 'Game B']:
             for pid, time in self.completion_times[game].items():
@@ -749,7 +763,6 @@ class ARCDataAnalyzer:
             return None
 
         mean_times = {pid: np.mean(times) for pid, times in all_times.items()}
-        efficiency_rank = pd.Series(mean_times).rank()  # rank 1 = fastest
 
         results = {}
 
@@ -761,7 +774,7 @@ class ARCDataAnalyzer:
 
             # Collect data
             enjoyment_data = []
-            for pid in efficiency_rank.index:
+            for pid in mean_times.keys():
                 mask = self.demographic_df[id_col].astype(str).str.contains(str(pid), na=False)
                 if mask.any():
                     enjoyment_score = self.demographic_df.loc[mask, col].iloc[0]
@@ -772,8 +785,8 @@ class ARCDataAnalyzer:
                             enjoyment_data.append({
                                 'participant_id': pid,
                                 'enjoyment': score,
-                                'efficiency_rank': efficiency_rank[pid],
-                                'completion_time': mean_times[pid]
+                                'completion_time': mean_times[pid],
+                                'completion_time_min': mean_times[pid] / 60  # Also store in minutes
                             })
                         except (ValueError, TypeError):
                             pass
@@ -785,11 +798,11 @@ class ARCDataAnalyzer:
             df_enjoy = pd.DataFrame(enjoyment_data)
 
             # Spearman correlation (rank-based, appropriate for Likert scales)
-            rho, p_spearman = spearmanr(df_enjoy['enjoyment'], df_enjoy['efficiency_rank'])
+            rho, p_spearman = spearmanr(df_enjoy['enjoyment'], df_enjoy['completion_time'])
 
-            # Linear regression
+            # Linear regression (enjoyment predicting completion time)
             X = df_enjoy['enjoyment'].values.reshape(-1, 1)
-            y = df_enjoy['efficiency_rank'].values
+            y = df_enjoy['completion_time'].values
 
             model = LinearRegression()
             model.fit(X, y)
@@ -824,8 +837,9 @@ class ARCDataAnalyzer:
             sig_reg = '***' if p_regression < 0.001 else '**' if p_regression < 0.01 else '*' if p_regression < 0.05 else 'ns'
 
             print(f"      Spearman: rho={rho:.3f}, p={p_spearman:.4f} {sig_spearman}")
-            print(f"      Linear Regression: R2={r2:.3f}, coef={coef:.3f}, p={p_regression:.4f} {sig_reg}")
+            print(f"      Linear Regression: R2={r2:.3f}, coef={coef:.3f} sec/point, p={p_regression:.4f} {sig_reg}")
             print(f"      N={n}")
+            print(f"      Interpretation: {'Higher' if coef > 0 else 'Lower'} enjoyment associated with {'longer' if coef > 0 else 'shorter'} completion times")
 
         self.results['enjoyment_correlation'] = results
         return results
@@ -1068,11 +1082,11 @@ class ARCDataAnalyzer:
         plt.close()
 
     def create_enjoyment_scatter_plots(self):
-        """Create scatter plots for enjoyment vs efficiency rank"""
+        """Create scatter plots for enjoyment vs completion time"""
         if 'enjoyment_correlation' not in self.results or not self.results['enjoyment_correlation']:
             return
 
-        print("  Creating enjoyment correlation scatter plots...")
+        print("  Creating enjoyment vs completion time scatter plots...")
 
         enjoyment_types = list(self.results['enjoyment_correlation'].keys())
 
@@ -1088,30 +1102,103 @@ class ARCDataAnalyzer:
             df = data['data']
             ax = axes[idx]
 
-            # Scatter plot
-            ax.scatter(df['enjoyment'], df['efficiency_rank'], alpha=0.6, s=100, color='steelblue')
+            # Convert completion time to minutes for readability
+            completion_time_min = df['completion_time'] / 60
 
-            # Regression line
+            # Scatter plot
+            ax.scatter(df['enjoyment'], completion_time_min, alpha=0.6, s=100, color='steelblue')
+
+            # Regression line (convert y_pred to minutes too)
             X = df['enjoyment'].values
-            y_pred = data['y_pred']
+            y_pred_min = data['y_pred'] / 60
             sort_idx = np.argsort(X)
-            ax.plot(X[sort_idx], y_pred[sort_idx], 'r-', linewidth=2,
-                   label=f'Regression (R2={data["r2"]:.3f})')
+            ax.plot(X[sort_idx], y_pred_min[sort_idx], 'r-', linewidth=2,
+                   label=f'Regression (R²={data["r2"]:.3f})')
 
             title_name = enjoyment_type.replace('_', ' ').title()
             ax.set_xlabel(f'{title_name} Enjoyment (Likert Scale)', fontsize=12)
-            ax.set_ylabel('Efficiency Rank (1 = fastest)', fontsize=12)
-            ax.set_title(f'{title_name} Enjoyment vs Efficiency\n'
+            ax.set_ylabel('Completion Time (minutes)', fontsize=12)
+            ax.set_title(f'{title_name} Enjoyment vs Completion Time\n'
                         f'Spearman rho={data["spearman_rho"]:.3f}, p={data["spearman_p"]:.4f}',
                         fontsize=12, fontweight='bold')
             ax.legend()
             ax.grid(alpha=0.3)
 
-            # Invert y-axis so rank 1 (best) is at top
-            ax.invert_yaxis()
+        plt.tight_layout()
+        output_path = OUTPUT_DIR / f'enjoyment_vs_completion_time_{self.timestamp}.png'
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"    Saved: {output_path.name}")
+        plt.close()
+
+    def create_completion_time_line_graph(self):
+        """Create line graph showing completion times for each participant (Game A and B)"""
+        if not self.completion_times['Game A'] and not self.completion_times['Game B']:
+            print("  No completion time data for line graph")
+            return
+
+        print("  Creating completion time line graph...")
+
+        # Get all participants who have data for either game
+        all_participants = sorted(set(self.completion_times['Game A'].keys()) |
+                                 set(self.completion_times['Game B'].keys()))
+
+        if not all_participants:
+            print("    No participants with completion times")
+            return
+
+        # Prepare data
+        game_a_times = []
+        game_b_times = []
+
+        for pid in all_participants:
+            # Game A time (in minutes)
+            if pid in self.completion_times['Game A']:
+                game_a_times.append(self.completion_times['Game A'][pid].total_seconds() / 60)
+            else:
+                game_a_times.append(np.nan)
+
+            # Game B time (in minutes)
+            if pid in self.completion_times['Game B']:
+                game_b_times.append(self.completion_times['Game B'][pid].total_seconds() / 60)
+            else:
+                game_b_times.append(np.nan)
+
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(14, 6))
+
+        x = np.arange(len(all_participants))
+
+        # Plot both lines
+        ax.plot(x, game_a_times, 'o-', color='#2E86AB', linewidth=2, markersize=8,
+               label='Puzzle A', alpha=0.8)
+        ax.plot(x, game_b_times, 's-', color='#A23B72', linewidth=2, markersize=8,
+               label='Puzzle B', alpha=0.8)
+
+        # Customize the plot
+        ax.set_xlabel('Participant', fontsize=12)
+        ax.set_ylabel('Completion Time (minutes)', fontsize=12)
+        ax.set_title('Puzzle Completion Times by Participant', fontsize=14, fontweight='bold')
+
+        # Set x-axis labels to participant IDs
+        ax.set_xticks(x)
+        ax.set_xticklabels(all_participants, rotation=45, ha='right')
+
+        ax.legend(loc='upper right', fontsize=11)
+        ax.grid(alpha=0.3, axis='y')
+
+        # Add mean lines
+        mean_a = np.nanmean(game_a_times)
+        mean_b = np.nanmean(game_b_times)
+        ax.axhline(y=mean_a, color='#2E86AB', linestyle='--', alpha=0.5,
+                  label=f'Puzzle A Mean: {mean_a:.1f} min')
+        ax.axhline(y=mean_b, color='#A23B72', linestyle='--', alpha=0.5,
+                  label=f'Puzzle B Mean: {mean_b:.1f} min')
+
+        # Update legend to include means
+        ax.legend(loc='upper right', fontsize=10)
 
         plt.tight_layout()
-        output_path = OUTPUT_DIR / f'enjoyment_correlation_{self.timestamp}.png'
+        output_path = OUTPUT_DIR / f'completion_time_by_participant_{self.timestamp}.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         print(f"    Saved: {output_path.name}")
         plt.close()
@@ -1197,15 +1284,16 @@ class ARCDataAnalyzer:
                     f.write(f"  {game}: {res['method']} r={res['correlation']:.3f}, p={res['p_value']:.4f}, n={res['n']}\n")
 
             if 'enjoyment_correlation' in self.results and self.results['enjoyment_correlation']:
-                f.write(f"\nEnjoyment vs Efficiency Correlations:\n")
+                f.write(f"\nEnjoyment vs Completion Time Correlations:\n")
                 for enjoyment_type, res in self.results['enjoyment_correlation'].items():
                     title = enjoyment_type.replace('_', ' ').title()
                     f.write(f"\n  {title} Enjoyment:\n")
                     f.write(f"    Spearman: rho={res['spearman_rho']:.3f}, p={res['spearman_p']:.4f}\n")
-                    f.write(f"    Linear Regression: R2={res['r2']:.3f}, coef={res['coefficient']:.3f}, p={res['regression_p']:.4f}\n")
+                    f.write(f"    Linear Regression: R2={res['r2']:.3f}, coef={res['coefficient']:.3f} sec/point, p={res['regression_p']:.4f}\n")
                     f.write(f"    N={res['n']}\n")
                     sig = '*' if res['spearman_p'] < 0.05 else ''
-                    f.write(f"    Interpretation: {'Significant' if sig else 'Not significant'} relationship between {title.lower()} enjoyment and puzzle-solving efficiency\n")
+                    direction = 'longer' if res['coefficient'] > 0 else 'shorter'
+                    f.write(f"    Interpretation: {'Significant' if sig else 'Not significant'} relationship - higher {title.lower()} enjoyment associated with {direction} completion times\n")
 
             if 'nlp_anova' in self.results and self.results['nlp_anova']:
                 f.write(f"\nKruskal-Wallis Tests (Movement Features by Category):\n")
@@ -1269,6 +1357,7 @@ def run_full_analysis():
     print("=" * 50)
 
     analyzer.create_completion_time_histograms()
+    analyzer.create_completion_time_line_graph()
     analyzer.create_nlp_boxplots()
     analyzer.create_feature_heatmap()
     analyzer.create_age_scatter_plots()
