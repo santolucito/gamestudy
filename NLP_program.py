@@ -332,6 +332,55 @@ class GameStateAnalyzer:
             }
         return info
 
+    def is_near_level_completion(self, relative_seconds, window_seconds=10):
+        """
+        Check if a timestamp is near the end of a level (approaching solution).
+
+        Args:
+            relative_seconds: Seconds from start of session/recording
+            window_seconds: How many seconds before level end to consider "near completion"
+
+        Returns:
+            dict with:
+                - 'near_completion': bool
+                - 'level': level number if near completion
+                - 'seconds_to_completion': seconds until level ends
+                - 'is_final_levels': True if this is one of the last 2 levels
+        """
+        if self.session_start is None:
+            return {'near_completion': False, 'level': None, 'seconds_to_completion': None, 'is_final_levels': False}
+
+        # Convert relative time to absolute time
+        absolute_time = self.session_start + timedelta(seconds=relative_seconds)
+
+        sorted_levels = sorted(self.level_timestamps.keys())
+        num_levels = len(sorted_levels)
+
+        for level in sorted_levels:
+            times = self.level_timestamps[level]
+            level_end = times['end']
+
+            # Check if we're within the window before level completion
+            seconds_to_end = (level_end - absolute_time).total_seconds()
+
+            if 0 <= seconds_to_end <= window_seconds:
+                # We're within the window before level completion
+                is_final = level >= num_levels - 1  # Last 2 levels (0-indexed: levels 4 and 5 if 6 total)
+                return {
+                    'near_completion': True,
+                    'level': level,
+                    'seconds_to_completion': seconds_to_end,
+                    'is_final_levels': is_final
+                }
+
+        return {'near_completion': False, 'level': None, 'seconds_to_completion': None, 'is_final_levels': False}
+
+    def get_max_level(self):
+        """Return the highest level number in this session."""
+        if not self.level_timestamps:
+            return None
+        return max(self.level_timestamps.keys())
+
 
 def parse_timestamp_to_seconds(timestamp_str):
     """
@@ -387,12 +436,16 @@ class SpeechCategoryClassifier:
 
         self.exploitative_markers = {
             'certainty': ['I know', 'definitely', 'obviously', 'clearly', 'for sure',
-                         'certain', 'figured it out', 'got it', 'understand'],
+                         'certain', 'figured it out', 'got it', 'understand', 'I get it',
+                         'makes sense', 'that makes sense', 'ah okay', 'oh okay'],
             'execution': ["now I'll just", 'just need to', 'all I have to do',
-                         'just going to', 'now I can', 'okay now',
-                         'alright now', 'easy', 'match'],
+                         'just going to', 'now I can', 'okay now', "let me just",
+                         'alright now', 'easy', 'match', 'so I need to',
+                         "I'm gonna", "I'll go", 'move to', 'go to', 'align'],
             'completion': ['almost done', 'finish', 'complete', 'final step',
-                          'last step', 'last thing', 'done', 'solved']
+                          'last step', 'last thing', 'done', 'solved', 'there we go',
+                          "that's it", 'yes', 'nice', 'perfect', 'boom', 'there it is',
+                          'got it', 'yep', 'okay good']
         }
 
     def score_category(self, text, markers_dict):
@@ -766,10 +819,39 @@ def process_transcript_file(transcript_file, participant_tracker=None, participa
 
         # Determine level from game-state data if available
         level = None
+        near_completion_info = {'near_completion': False, 'level': None, 'seconds_to_completion': None, 'is_final_levels': False}
         if gamestate_analyzer:
             start_seconds = parse_timestamp_to_seconds(start_time)
             if start_seconds is not None:
                 level = gamestate_analyzer.get_level_for_timestamp(start_seconds)
+                # Check if near level completion (within 10 seconds of solving)
+                near_completion_info = gamestate_analyzer.is_near_level_completion(start_seconds, window_seconds=10)
+
+        # Apply level completion boost for exploit classification
+        # If near level completion and not already classified as exploit, boost exploit
+        near_completion = near_completion_info['near_completion']
+        is_final_levels = near_completion_info['is_final_levels']
+
+        if near_completion:
+            if category != 'exploitative':
+                # Near level completion strongly suggests exploit behavior
+                # For final levels: override to exploit if not clearly another category
+                # For other levels: boost exploit score and flag for review
+                if is_final_levels and category == 'NEEDS_MANUAL_REVIEW':
+                    # Final levels + ambiguous = likely exploit
+                    category = 'exploitative'
+                    confidence = 'medium'
+                    markers['exploitative'].append('near_level_completion_final')
+                elif is_final_levels and confidence == 'low':
+                    # Final levels + low confidence = override to exploit
+                    category = 'exploitative'
+                    confidence = 'medium'
+                    markers['exploitative'].append('near_level_completion_final')
+                elif near_completion and category == 'NEEDS_MANUAL_REVIEW':
+                    # Near any level completion + ambiguous = likely exploit
+                    category = 'exploitative'
+                    confidence = 'low'
+                    markers['exploitative'].append('near_level_completion')
 
         results.append({
             'participant_id': participant_id,
@@ -789,6 +871,8 @@ def process_transcript_file(transcript_file, participant_tracker=None, participa
             'exploratory_markers': ', '.join(markers['exploratory']),
             'confirmatory_markers': ', '.join(markers['confirmatory']),
             'exploitative_markers': ', '.join(markers['exploitative']),
+            'near_level_completion': near_completion,
+            'is_final_levels': is_final_levels,
             'needs_review': category == 'NEEDS_MANUAL_REVIEW'
         })
 
