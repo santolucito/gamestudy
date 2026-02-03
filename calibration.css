@@ -27,6 +27,8 @@ body {
     text-align: center;
     max-width: 600px;
     padding: 40px;
+    position: relative;
+    z-index: 1001;
 }
 
 h1 {
