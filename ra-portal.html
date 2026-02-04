@@ -44,6 +44,7 @@
             background-color: #fee6e3;
             border: 2px solid #111;
             border-radius: 8px;
+            box-shadow: 6px 6px 0 #111;
             color: #111;
             cursor: pointer;
             display: flex;
@@ -52,39 +53,22 @@
             justify-content: center;
             line-height: 24px;
             max-width: 100%;
+            min-width: 180px;
             padding: 0 25px;
-            position: relative;
             text-align: center;
             text-decoration: none;
             user-select: none;
             -webkit-user-select: none;
             touch-action: manipulation;
-            isolation: isolate;
+            transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
         }
-        .links a:after {
-            background-color: #111;
-            border-radius: 8px;
-            content: "";
-            display: block;
-            height: 48px;
-            left: 0;
-            width: 100%;
-            position: absolute;
-            top: -2px;
-            transform: translate(8px, 8px);
-            transition: transform .2s ease-out;
-            z-index: -1;
-        }
-        .links a:hover:after {
-            transform: translate(0, 0);
+        .links a:hover {
+            box-shadow: 0 0 0 #111;
+            transform: translate(6px, 6px);
+            background-color: #ffd0cb;
         }
         .links a:active {
             background-color: #ffdeda;
-            outline: 0;
-        }
-        .links a:hover {
-            outline: 0;
-            background-color: #ffd0cb;
         }
         @media (min-width: 768px) {
             .links a {
