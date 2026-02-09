@@ -66,6 +66,13 @@ const AudioRecorder = (function() {
         }
 
         try {
+            // Clear any potentially corrupted localStorage data first
+            localStorage.removeItem('webgazerGlobalData');
+
+            // Configure WebGazer BEFORE calling begin()
+            // Disable saving across sessions to prevent loading corrupted data
+            webgazer.saveDataAcrossSessions(false);
+
             await webgazer.begin();
 
             webgazer.setGazeListener((data, timestamp) => {
