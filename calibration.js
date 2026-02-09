@@ -84,11 +84,6 @@ const Calibration = (function() {
         }
 
         try {
-            webgazer.setGazeListener(function(data, timestamp) {
-                // Gaze data collected during calibration
-                // Clicks automatically train the model
-            });
-            webgazer.saveDataAcrossSessions(true);
             await webgazer.begin();
 
             // Show video preview during calibration for user feedback

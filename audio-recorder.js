@@ -66,6 +66,8 @@ const AudioRecorder = (function() {
         }
 
         try {
+            await webgazer.begin();
+
             webgazer.setGazeListener((data, timestamp) => {
                 if (data && state.isRecording) {
                     const relativeTimestamp = Date.now() - state.startTime;
@@ -90,8 +92,6 @@ const AudioRecorder = (function() {
                     }
                 }
             });
-            webgazer.saveDataAcrossSessions(true);
-            await webgazer.begin();
 
             // Hide video preview and prediction points for cleaner UI
             webgazer.showVideoPreview(false);
