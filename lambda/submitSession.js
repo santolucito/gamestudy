@@ -14,7 +14,9 @@ const BUCKET_NAME = process.env.BUCKET_NAME || 'gamestudy-data';
 
 const ALLOWED_ORIGINS = [
     'https://marksantolucito.com',
+    'https://www.marksantolucito.com',
     'http://marksantolucito.com',
+    'http://www.marksantolucito.com',
     'https://r-papir.github.io',
     'http://r-papir.github.io'
 ];
