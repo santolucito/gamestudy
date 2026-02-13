@@ -9,31 +9,14 @@
 
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { getCorsHeaders } = require('./cors');
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 const BUCKET_NAME = process.env.BUCKET_NAME || 'gamestudy-data';
 const EXPIRATION_SECONDS = 10800; // 3 hours
 
-const ALLOWED_ORIGINS = [
-    'https://marksantolucito.com',
-    'https://www.marksantolucito.com',
-    'http://marksantolucito.com',
-    'http://www.marksantolucito.com',
-    'https://r-papir.github.io',
-    'http://r-papir.github.io'
-];
-
-function getCorsHeaders(event) {
-    const origin = event.headers?.origin || event.headers?.Origin || '';
-    return {
-        'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-    };
-}
-
 exports.handler = async (event) => {
-    const corsHeaders = getCorsHeaders(event);
+    const corsHeaders = getCorsHeaders(event, 'POST, OPTIONS');
 
     // Handle CORS preflight
     if (event.httpMethod === 'OPTIONS') {
